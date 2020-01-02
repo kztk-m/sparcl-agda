@@ -585,21 +585,18 @@ data Term : ∀ (Γ : TyEnv) -> MultEnv (length Γ) -> (Θ : TyEnv) -> MultEnv (
 
   letunit● : 
     ∀ {Γ Δ₀ Δ Θ Ξ₀ Ξ A} -> 
-    (ano : all-no-omega (Ξ₀ +ₘ Ξ)) -> 
     Term Γ Δ₀ Θ Ξ₀ (tunit ●) ->
     Term Γ Δ  Θ Ξ  (A ●) -> 
     Term Γ (Δ₀ +ₘ Δ) Θ (Ξ₀ +ₘ Ξ) (A ●)
 
   pair● : 
     ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
-    (ano : all-no-omega (Ξ₁ +ₘ Ξ₂)) -> 
     Term Γ Δ₁ Θ Ξ₁ (A ●) -> 
     Term Γ Δ₂ Θ Ξ₂ (B ●) -> 
     Term Γ (Δ₁ +ₘ Δ₂) Θ (Ξ₁ +ₘ Ξ₂) ((A ⊗ B) ●)
 
   letpair● : 
     ∀ {Γ Δ₀ Δ Θ Ξ₀ Ξ A B C} -> 
-    (ano : all-no-omega (Ξ₀ +ₘ Ξ)) -> 
     Term Γ Δ₀ Θ Ξ₀ ((A ⊗ B) ●) -> 
     Term Γ Δ  (A ∷ B ∷ Θ) (one ∷ one ∷ Ξ) (C ●) -> 
     Term Γ (Δ₀ +ₘ Δ) Θ (Ξ₀ +ₘ Ξ) (C ●) 
@@ -616,7 +613,6 @@ data Term : ∀ (Γ : TyEnv) -> MultEnv (length Γ) -> (Θ : TyEnv) -> MultEnv (
 
   case● : 
     ∀ {Γ Δ₀ Δ Δ' Θ Ξ₀ Ξ Ξ' A B C} -> 
-    (ano : all-no-omega (Ξ₀ +ₘ Ξ +ₘ omega ×ₘ Ξ')) -> 
     Term Γ Δ₀ Θ Ξ₀ ((A ⊕ B) ●) ->
     Term Γ Δ  (A ∷ Θ) (one ∷ Ξ) (C ●) -> 
     Term Γ Δ  (B ∷ Θ) (one ∷ Ξ) (C ●) -> 
@@ -630,418 +626,302 @@ data Term : ∀ (Γ : TyEnv) -> MultEnv (length Γ) -> (Θ : TyEnv) -> MultEnv (
          Term Γ Δ Θ Ξ (A ●)
 
   pin : ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
-        (ano : all-no-omega (Ξ₁ +ₘ Ξ₂)) -> 
         Term Γ Δ₁ Θ Ξ₁ (A ●) ->          
         Term Γ Δ₂ Θ Ξ₂ (A # omega ~> B ●)  -> 
-        Term Γ (Δ₁ +ₘ Δ₂) Θ (Ξ₁ +ₘ Ξ₂) (B ●)
+        Term Γ (Δ₁ +ₘ Δ₂) Θ (Ξ₁ +ₘ Ξ₂) ((A ⊗ B) ●)
 
   fwd : 
     ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
-    (ano : all-no-omega (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂)) -> 
     Term Γ Δ₁ Θ Ξ₁ (A ● ⊸ B ●) -> 
     Term Γ Δ₂ Θ Ξ₂ A -> 
     Term Γ (omega ×ₘ Δ₁ +ₘ omega ×ₘ Δ₂) Θ (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂) B  
 
   bwd : 
     ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
-    (ano : all-no-omega (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂)) -> 
     Term Γ Δ₁ Θ Ξ₁ (A ● ⊸ B ●) -> 
     Term Γ Δ₂ Θ Ξ₂ B -> 
     Term Γ (omega ×ₘ Δ₁ +ₘ omega ×ₘ Δ₂) Θ (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂) A
 
-data extendΘ : (Θ : TyEnv)  (Ξ : MultEnv (length Θ)) 
+data compatΘ : (Θ : TyEnv)  (Ξ : MultEnv (length Θ)) 
                 (Θ' : TyEnv) (Ξ' : MultEnv (length Θ')) -> Set where 
-  ext-[] : 
-    extendΘ [] [] [] [] 
+  compat-[] : 
+    compatΘ [] [] [] [] 
      
-  ext-here : 
+  compat-ext-here : 
     ∀ {Θ Ξ Θ' Ξ' A} -> 
-    extendΘ Θ Ξ Θ' Ξ' -> 
-    extendΘ Θ Ξ (A ∷ Θ') (zero ∷ Ξ')
+    compatΘ Θ Ξ Θ' Ξ' -> 
+    compatΘ Θ Ξ (A ∷ Θ') (zero ∷ Ξ')
 
-  ext-there : 
+  compat-reduce-here : 
+    ∀ {Θ Ξ Θ' Ξ' A} -> 
+    compatΘ Θ Ξ Θ' Ξ' -> 
+    compatΘ (A ∷ Θ) (zero ∷ Ξ) Θ' Ξ'
+
+
+  compat-skip : 
     ∀ {Θ Ξ Θ' Ξ' A m } -> 
-    extendΘ Θ Ξ Θ' Ξ' -> 
-    extendΘ (A ∷ Θ) (m ∷ Ξ) (A ∷ Θ') (m ∷ Ξ')
+    compatΘ Θ Ξ Θ' Ξ' -> 
+    compatΘ (A ∷ Θ) (m ∷ Ξ) (A ∷ Θ') (m ∷ Ξ')
 
-ext-id : ∀ {Θ Ξ} ->  extendΘ Θ Ξ Θ Ξ
-ext-id {[]} {[]}         = ext-[]
-ext-id {_ ∷ Θ} {_ ∷ Ξ} = ext-there (ext-id {Θ} {Ξ})
+  
 
-extendΘ-∅ : ∀ {Θ Θ' Ξ'} -> extendΘ Θ ∅ Θ' Ξ' -> Ξ' ≡ ∅ 
-extendΘ-∅ ext-[] = refl 
-extendΘ-∅ (ext-here  ext) = cong (_∷_ zero) (extendΘ-∅ ext)
-extendΘ-∅ (ext-there ext) = cong (_∷_ zero) (extendΘ-∅ ext) 
+ext-id : ∀ {Θ Ξ} ->  compatΘ Θ Ξ Θ Ξ
+ext-id {[]} {[]}         = compat-[]
+ext-id {_ ∷ Θ} {_ ∷ Ξ} = compat-skip (ext-id {Θ} {Ξ})
 
-extendΘ-split : 
+smashΘ : ∀ {Θ} -> compatΘ Θ ∅ [] ∅ 
+smashΘ {[]} = compat-[]
+smashΘ {_ ∷ Θ} = compat-reduce-here smashΘ 
+
+extendΘ : ∀ {Θ} -> compatΘ [] ∅ Θ ∅ 
+extendΘ {[]} = compat-[]
+extendΘ {_ ∷ Θ} = compat-ext-here extendΘ 
+
+compatΘ-∅ : ∀ {Θ Θ' Ξ'} -> compatΘ Θ ∅ Θ' Ξ' -> Ξ' ≡ ∅ 
+compatΘ-∅ compat-[] = refl 
+compatΘ-∅ (compat-reduce-here ext) = compatΘ-∅ ext 
+compatΘ-∅ (compat-ext-here  ext) = cong (_∷_ zero) (compatΘ-∅ ext)
+compatΘ-∅ (compat-skip ext) = cong (_∷_ zero) (compatΘ-∅ ext) 
+
+compatΘ-split : 
   ∀ {Θ Ξ₁ Ξ₂ Θ' Ξ'} -> 
-  extendΘ Θ (Ξ₁ +ₘ Ξ₂) Θ' Ξ' -> 
+  compatΘ Θ (Ξ₁ +ₘ Ξ₂) Θ' Ξ' -> 
     ∃ λ (Ξ₁' : MultEnv (length Θ')) -> ∃ λ (Ξ₂' : MultEnv (length Θ')) -> 
-      extendΘ Θ Ξ₁ Θ' Ξ₁' × extendΘ Θ Ξ₂ Θ' Ξ₂' × Ξ₁' +ₘ Ξ₂' ≡ Ξ' 
-extendΘ-split {[]} {[]} {[]} ext-[] = ∅ , ∅ , ext-[] , ext-[] , refl
-extendΘ-split {[]} {[]} {[]} (ext-here ext) with extendΘ-split ext 
-... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = zero ∷ Ξ₁' , zero ∷ Ξ₂' , ext-here ext₁ , ext-here ext₂ ,  refl
-extendΘ-split {x ∷ Θ} {x₁ ∷ Ξ₁} {x₂ ∷ Ξ₂} (ext-here ext) with extendΘ-split {x ∷ Θ} {x₁ ∷ Ξ₁} {x₂ ∷ Ξ₂} ext
-... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = zero ∷ Ξ₁' , zero ∷ Ξ₂' , ext-here ext₁ , ext-here ext₂ ,  refl  
-extendΘ-split {x ∷ Θ} {x₁ ∷ Ξ₁} {x₂ ∷ Ξ₂} (ext-there ext) with extendΘ-split ext 
-... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = x₁ ∷ Ξ₁' , x₂ ∷ Ξ₂' , ext-there ext₁ , ext-there ext₂ , refl 
+      compatΘ Θ Ξ₁ Θ' Ξ₁' × compatΘ Θ Ξ₂ Θ' Ξ₂' × Ξ₁' +ₘ Ξ₂' ≡ Ξ' 
+compatΘ-split {[]} {[]} {[]} {.[]} {.[]} compat-[] = ∅ , ∅ , compat-[] , compat-[] , refl
+compatΘ-split {[]} {[]} {[]} {.(_ ∷ _)} {.(zero ∷ _)} (compat-ext-here ext) 
+  with compatΘ-split ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+   zero ∷ Ξ₁' , zero ∷ Ξ₂' , compat-ext-here ext₁ , compat-ext-here ext₂ , refl 
+compatΘ-split {x ∷ Θ} {zero ∷ Ξ₁} {.zero ∷ Ξ₂} {[]} {[]} (compat-reduce-here ext) 
+  with compatΘ-split ext 
+... | [] ,  [] , ext₁ , ext₂ , eq  = 
+  [] , [] , compat-reduce-here ext₁ , compat-reduce-here ext₂ , refl
+compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {zero ∷ Ξ₂} {[]} {[]} ()
+compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {one ∷ Ξ₂} {[]} {[]} ()
+compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {omega ∷ Ξ₂} {[]} {[]} ()
 
-extendΘ-preserves-all-no-omega : 
+compatΘ-split {x ∷ Θ} {zero ∷ Ξ₁} {x₂ ∷ Ξ₂} {x₃ ∷ Θ'} {.zero ∷ Ξ'} (compat-ext-here ext)
+  with compatΘ-split {x ∷ Θ} {zero ∷ Ξ₁} {x₂ ∷ Ξ₂}  ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+   zero ∷ Ξ₁' , zero ∷ Ξ₂' , compat-ext-here ext₁ , compat-ext-here ext₂ , refl 
+compatΘ-split {x ∷ Θ} {zero ∷ Ξ₁} {.zero ∷ Ξ₂} {x₃ ∷ Θ'} {x₄ ∷ Ξ'} (compat-reduce-here ext) 
+  with compatΘ-split ext
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , eq =
+  Ξ₁' , Ξ₂' , compat-reduce-here ext₁ , compat-reduce-here ext₂ , eq
+compatΘ-split {x ∷ Θ} {zero ∷ Ξ₁} {x₂ ∷ Ξ₂} {.x ∷ Θ'} {.x₂ ∷ Ξ'} (compat-skip ext) 
+  with compatΘ-split ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+  zero ∷ Ξ₁' , x₂ ∷ Ξ₂' , compat-skip ext₁ , compat-skip ext₂ , refl
+
+compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {zero ∷ Ξ₂} {x₃ ∷ Θ'} {.zero ∷ Ξ'} (compat-ext-here ext) 
+  with compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {zero ∷ Ξ₂}  ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+   zero ∷ Ξ₁' , zero ∷ Ξ₂' , compat-ext-here ext₁ , compat-ext-here ext₂ , refl 
+compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {zero ∷ Ξ₂} {.x ∷ Θ'} {.one ∷ Ξ'} (compat-skip ext) 
+  with compatΘ-split ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+  one ∷ Ξ₁' , zero ∷ Ξ₂' , compat-skip ext₁ , compat-skip ext₂ , refl
+
+compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {one ∷ Ξ₂} {x₃ ∷ Θ'} {.zero ∷ Ξ'} (compat-ext-here ext)
+  with compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {one ∷ Ξ₂}  ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+   zero ∷ Ξ₁' , zero ∷ Ξ₂' , compat-ext-here ext₁ , compat-ext-here ext₂ , refl 
+compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {one ∷ Ξ₂} {.x ∷ Θ'} {.omega ∷ Ξ'} (compat-skip ext) 
+  with compatΘ-split ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+  one ∷ Ξ₁' , one ∷ Ξ₂' , compat-skip ext₁ , compat-skip ext₂ , refl
+
+compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {omega ∷ Ξ₂} {x₃ ∷ Θ'} {.zero ∷ Ξ'} (compat-ext-here ext) 
+  with compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {omega ∷ Ξ₂}  ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+   zero ∷ Ξ₁' , zero ∷ Ξ₂' , compat-ext-here ext₁ , compat-ext-here ext₂ , refl 
+compatΘ-split {x ∷ Θ} {one ∷ Ξ₁} {omega ∷ Ξ₂} {.x ∷ Θ'} {.omega ∷ Ξ'} (compat-skip ext) 
+  with compatΘ-split ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+  one ∷ Ξ₁' , omega ∷ Ξ₂' , compat-skip ext₁ , compat-skip ext₂ , refl
+
+compatΘ-split {x ∷ Θ} {omega ∷ Ξ₁} {x₂ ∷ Ξ₂} {x₃ ∷ Θ'} {.zero ∷ Ξ'} (compat-ext-here ext) 
+  with compatΘ-split {x ∷ Θ} {omega ∷ Ξ₁} {x₂ ∷ Ξ₂}  ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+   zero ∷ Ξ₁' , zero ∷ Ξ₂' , compat-ext-here ext₁ , compat-ext-here ext₂ , refl 
+compatΘ-split {x ∷ Θ} {omega ∷ Ξ₁} {x₂ ∷ Ξ₂} {.x ∷ Θ'} {.omega ∷ Ξ'} (compat-skip ext) 
+  with compatΘ-split ext 
+... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
+  omega ∷ Ξ₁' , x₂ ∷ Ξ₂' , compat-skip ext₁ , compat-skip ext₂ , refl
+
+-- compatΘ-split {[]} {[]} {[]} compat-[] = ∅ , ∅ , compat-[] , compat-[] , refl
+-- compatΘ-split {[]} {[]} {[]} (compat-ext-here ext) with compatΘ-split ext 
+-- ... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = zero ∷ Ξ₁' , zero ∷ Ξ₂' , compat-ext-here ext₁ , compat-ext-here ext₂ ,  refl
+-- compatΘ-split {x ∷ Θ} {x₁ ∷ Ξ₁} {x₂ ∷ Ξ₂} (compat-ext-here ext) with compatΘ-split {x ∷ Θ} {x₁ ∷ Ξ₁} {x₂ ∷ Ξ₂} ext
+-- ... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = zero ∷ Ξ₁' , zero ∷ Ξ₂' , compat-ext-here ext₁ , compat-ext-here ext₂ ,  refl  
+-- compatΘ-split {x ∷ Θ} {x₁ ∷ Ξ₁} {x₂ ∷ Ξ₂} (compat-skip ext) with compatΘ-split ext 
+-- ... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = x₁ ∷ Ξ₁' , x₂ ∷ Ξ₂' , compat-skip ext₁ , compat-skip ext₂ , refl 
+
+compatΘ-preserves-all-no-omega : 
   ∀ {Θ Ξ Θ' Ξ'} -> 
-  extendΘ Θ Ξ Θ' Ξ' -> all-no-omega Ξ -> all-no-omega Ξ' 
-extendΘ-preserves-all-no-omega ext-[] ano = ano
-extendΘ-preserves-all-no-omega (ext-here ext) ano = zero ∷ extendΘ-preserves-all-no-omega ext ano
-extendΘ-preserves-all-no-omega (ext-there ext) (px ∷ ano) = px ∷ extendΘ-preserves-all-no-omega ext ano 
+  compatΘ Θ Ξ Θ' Ξ' -> all-no-omega Ξ -> all-no-omega Ξ' 
+compatΘ-preserves-all-no-omega compat-[] ano = ano
+compatΘ-preserves-all-no-omega (compat-ext-here ext) ano = zero ∷ compatΘ-preserves-all-no-omega ext ano
+compatΘ-preserves-all-no-omega (compat-reduce-here ext) (px ∷ ano) = compatΘ-preserves-all-no-omega ext ano
+compatΘ-preserves-all-no-omega (compat-skip ext) (px ∷ ano) = px ∷ compatΘ-preserves-all-no-omega ext ano 
+-- compatΘ-preserves-all-no-omega compat-[] ano = ano
+-- compatΘ-preserves-all-no-omega (compat-ext-here ext) ano = zero ∷ compatΘ-preserves-all-no-omega ext ano
+-- compatΘ-preserves-all-no-omega (compat-skip ext) (px ∷ ano) = px ∷ compatΘ-preserves-all-no-omega ext ano 
 
-extendΘ-preserves-all-zero :
+compatΘ-preserves-all-zero :
   ∀ {Θ Ξ Θ' Ξ'} -> 
-  extendΘ Θ Ξ Θ' Ξ' -> all-zero Ξ -> all-zero Ξ' 
-extendΘ-preserves-all-zero ext-[] az = az
-extendΘ-preserves-all-zero (ext-here ext) az = refl ∷ extendΘ-preserves-all-zero ext az
-extendΘ-preserves-all-zero (ext-there ext) (px ∷ az) = px ∷ extendΘ-preserves-all-zero ext az 
+  compatΘ Θ Ξ Θ' Ξ' -> all-zero Ξ -> all-zero Ξ' 
+compatΘ-preserves-all-zero compat-[] az = az
+compatΘ-preserves-all-zero (compat-ext-here ext) az = refl ∷ compatΘ-preserves-all-zero ext az
+compatΘ-preserves-all-zero (compat-reduce-here ext) (px ∷ az) = compatΘ-preserves-all-zero ext az
+compatΘ-preserves-all-zero (compat-skip ext) (px ∷ az) = px ∷ compatΘ-preserves-all-zero ext az 
+-- compatΘ-preserves-all-zero compat-[] az = az
+-- compatΘ-preserves-all-zero (compat-ext-here ext) az = refl ∷ compatΘ-preserves-all-zero ext az
+-- compatΘ-preserves-all-zero (compat-skip ext) (px ∷ az) = px ∷ compatΘ-preserves-all-zero ext az 
 
-extendΘ-var : 
-  ∀ { Θ Ξ Θ' Ξ' A } -> 
-  extendΘ Θ Ξ Θ' Ξ' -> Θ ∋ A -> Θ' ∋ A 
-extendΘ-var (ext-here ext) x = vs (extendΘ-var ext x)
-extendΘ-var (ext-there ext) vz = vz
-extendΘ-var (ext-there ext) (vs x) = vs (extendΘ-var ext x) 
+-- compatΘ-var : 
+--   ∀ { Θ Ξ Θ' Ξ' A } -> 
+--   compatΘ Θ Ξ Θ' Ξ' -> Θ ∋ A -> Θ' ∋ A 
+-- compatΘ-var (compat-ext-here ext) x = vs (compatΘ-var ext x)
+-- compatΘ-var (compat-skip ext) vz = vz
+-- compatΘ-var (compat-skip ext) (vs x) = vs (compatΘ-var ext x) 
 
-extendΘ-preserves-varOk● : 
+compatΘ-preserves-varOk● : 
   ∀ {Θ Ξ Θ' Ξ' A} {x : Θ ∋ A} -> 
-  extendΘ Θ Ξ Θ' Ξ' -> varOk● Θ x Ξ -> ∃ λ (x' : Θ' ∋ A) -> varOk● Θ' x' Ξ' 
-extendΘ-preserves-varOk● {x = x} (ext-here ext) ok with extendΘ-preserves-varOk● ext ok 
+  compatΘ Θ Ξ Θ' Ξ' -> varOk● Θ x Ξ -> ∃ λ (x' : Θ' ∋ A) -> varOk● Θ' x' Ξ' 
+compatΘ-preserves-varOk● (compat-ext-here ext) ok with compatΘ-preserves-varOk● ext ok 
+... | x' , ok'  =  vs x' , there ok'
+compatΘ-preserves-varOk● (compat-reduce-here ext) (there ok) = compatΘ-preserves-varOk● ext ok
+compatΘ-preserves-varOk● (compat-skip ext) (there ok) with compatΘ-preserves-varOk● ext ok 
 ... | x' , ok' = vs x' , there ok'
-extendΘ-preserves-varOk● (ext-there ext) (there ok) with extendΘ-preserves-varOk● ext ok 
-... | x' , ok' = vs x' , there ok'
-extendΘ-preserves-varOk● (ext-there ext) (here ad) = vz , here (extendΘ-preserves-all-zero ext ad) 
+compatΘ-preserves-varOk● (compat-skip ext) (here ad) = vz , here (compatΘ-preserves-all-zero ext ad) 
+
+-- compatΘ-preserves-varOk● {x = x} (compat-ext-here ext) ok with compatΘ-preserves-varOk● ext ok 
+-- ... | x' , ok' = vs x' , there ok'
+-- compatΘ-preserves-varOk● (compat-skip ext) (there ok) with compatΘ-preserves-varOk● ext ok 
+-- ... | x' , ok' = vs x' , there ok'
+-- compatΘ-preserves-varOk● (compat-skip ext) (here ad) = vz , here (compatΘ-preserves-all-zero ext ad) 
  
 
-extendΘ-×ₘ : 
+compatΘ-×ₘ : 
   ∀ {Θ m Ξ Θ' Ξ'} -> 
-  extendΘ Θ (m ×ₘ Ξ) Θ' Ξ' -> 
+  compatΘ Θ (m ×ₘ Ξ) Θ' Ξ' -> 
    ∃ λ (Ξ'' : MultEnv (length Θ')) -> 
-     extendΘ Θ Ξ Θ' Ξ'' × m ×ₘ Ξ'' ≡ Ξ' 
-extendΘ-×ₘ {[]} {m} {[]} ext-[] = [] , ext-[] , refl
-extendΘ-×ₘ {[]} {m} {[]} (ext-here ext) with extendΘ-×ₘ {m = m} ext 
-... | Ξ' , ext' , refl  = 
-      zero ∷ Ξ' , ext-here ext' , cong (_∷ m ×ₘ Ξ') (mul₀-m-zero _) 
-extendΘ-×ₘ {_ ∷ Θ} {m} {n ∷ Ξ} (ext-here ext) with extendΘ-×ₘ {m = m} ext 
-... | Ξ' , ext' , refl  = 
-      zero ∷ Ξ' , ext-here ext' , cong (_∷ m ×ₘ Ξ') (mul₀-m-zero _)  
-extendΘ-×ₘ {_ ∷ Θ} {m} {n ∷ Ξ} (ext-there ext) with extendΘ-×ₘ {m = m} ext 
-... | Ξ' , ext' , refl  = 
-    n ∷ Ξ' , ext-there ext' , refl 
+     compatΘ Θ Ξ Θ' Ξ'' × m ×ₘ Ξ'' ≡ Ξ' 
+compatΘ-×ₘ {[]} {m} {[]} {.[]} {.[]} compat-[] = [] , compat-[] , refl
+compatΘ-×ₘ {[]} {m} {[]} {.(_ ∷ _)} {.(zero ∷ _)} (compat-ext-here ext) with compatΘ-×ₘ {[]} {m} {[]} ext
+... | Ξ' , ext' , refl = zero ∷ Ξ' , compat-ext-here ext' , cong (_∷ m ×ₘ Ξ') (mul₀-m-zero _) 
+
+compatΘ-×ₘ {_ ∷ Θ} {one} {.zero ∷ Ξ} {[]} {[]} (compat-reduce-here ext) with compatΘ-×ₘ ext 
+... | [] , ext' , eq = [] , compat-reduce-here ext' , refl
+compatΘ-×ₘ {_ ∷ Θ} {omega} {zero ∷ Ξ} {[]} {[]} (compat-reduce-here ext) with compatΘ-×ₘ ext 
+... | [] , ext' , eq = [] , compat-reduce-here ext' , refl
+
+compatΘ-×ₘ {_ ∷ Θ} {one} {n ∷ Ξ} {_ ∷ Θ'} {.zero ∷ Ξ'} (compat-ext-here ext) 
+  with compatΘ-×ₘ ext 
+... | Ξ'' , ext' , refl = zero ∷ Ξ'' , compat-ext-here ext' , refl
+compatΘ-×ₘ {_ ∷ Θ} {one} {.zero ∷ Ξ} {_ ∷ Θ'} {n' ∷ Ξ'} (compat-reduce-here ext) 
+  with compatΘ-×ₘ ext
+... | Ξ'' , ext' , eq = Ξ'' , compat-reduce-here ext' , eq
+compatΘ-×ₘ {_ ∷ Θ} {one} {n ∷ Ξ} {_ ∷ Θ'} {.n ∷ Ξ'} (compat-skip ext) 
+  with compatΘ-×ₘ ext 
+... | Ξ'' , ext' , refl = n ∷ Ξ'' , compat-skip ext' , refl
+
+compatΘ-×ₘ {_ ∷ Θ} {omega} {zero ∷ Ξ} {_ ∷ Θ'} {.zero ∷ Ξ'} (compat-ext-here ext) 
+  with compatΘ-×ₘ {m = omega} {zero ∷ Ξ} ext 
+... | Ξ'' , ext' , refl = zero ∷ Ξ'' , compat-ext-here ext' , refl
+compatΘ-×ₘ {_ ∷ Θ} {omega} {zero ∷ Ξ} {_ ∷ Θ'} {n' ∷ Ξ'} (compat-reduce-here ext) 
+  with compatΘ-×ₘ ext 
+... | Ξ'' , ext' , eq = Ξ'' , compat-reduce-here ext' , eq
+compatΘ-×ₘ {_ ∷ Θ} {omega} {zero ∷ Ξ} {_ ∷ Θ'} {.zero ∷ Ξ'} (compat-skip ext) 
+  with compatΘ-×ₘ ext 
+... | Ξ'' , ext' , refl = zero ∷ Ξ'' , compat-skip ext' , refl
+
+compatΘ-×ₘ {_ ∷ Θ} {omega} {one ∷ Ξ} {_ ∷ Θ'} {.zero ∷ Ξ'} (compat-ext-here ext) 
+  with compatΘ-×ₘ {m = omega} {one ∷ Ξ} ext 
+... | Ξ'' , ext' , refl = zero ∷ Ξ'' , compat-ext-here ext' , refl
+compatΘ-×ₘ {_ ∷ Θ} {omega} {one ∷ Ξ} {_ ∷ Θ'} {.omega ∷ Ξ'} (compat-skip ext) 
+  with compatΘ-×ₘ ext 
+... | Ξ'' , ext' , refl = one ∷ Ξ'' , compat-skip ext' , refl
+
+compatΘ-×ₘ {_ ∷ Θ} {omega} {omega ∷ Ξ} {_ ∷ Θ'} {.zero ∷ Ξ'} (compat-ext-here ext) 
+  with compatΘ-×ₘ {m = omega} {omega ∷ Ξ} ext 
+... | Ξ'' , ext' , refl = zero ∷ Ξ'' , compat-ext-here ext' , refl
+compatΘ-×ₘ {_ ∷ Θ} {omega} {omega ∷ Ξ} {_ ∷ Θ'} {.omega ∷ Ξ'} (compat-skip ext) 
+  with compatΘ-×ₘ ext 
+... | Ξ'' , ext' , refl = omega ∷ Ξ'' , compat-skip ext' , refl
+
+-- compatΘ-×ₘ {[]} {m} {[]} compat-[] = [] , compat-[] , refl
+-- compatΘ-×ₘ {[]} {m} {[]} (compat-ext-here ext) with compatΘ-×ₘ {m = m} ext 
+-- ... | Ξ' , ext' , refl  = 
+--       zero ∷ Ξ' , compat-ext-here ext' , cong (_∷ m ×ₘ Ξ') (mul₀-m-zero _) 
+-- compatΘ-×ₘ {_ ∷ Θ} {m} {n ∷ Ξ} (compat-ext-here ext) with compatΘ-×ₘ {m = m} ext 
+-- ... | Ξ' , ext' , refl  = 
+--       zero ∷ Ξ' , compat-ext-here ext' , cong (_∷ m ×ₘ Ξ') (mul₀-m-zero _)  
+-- compatΘ-×ₘ {_ ∷ Θ} {m} {n ∷ Ξ} (compat-skip ext) with compatΘ-×ₘ {m = m} ext 
+-- ... | Ξ' , ext' , refl  = 
+--     n ∷ Ξ' , compat-skip ext' , refl 
 
 
 weakenΘ-term : ∀ {Γ Δ Θ Ξ Θ' Ξ' A} -> 
-                  extendΘ Θ Ξ Θ' Ξ' -> 
+                  compatΘ Θ Ξ Θ' Ξ' -> 
                   Term Γ Δ Θ  Ξ A -> 
                   Term Γ Δ Θ' Ξ' A 
-weakenΘ-term ext (var x ok) with extendΘ-∅ ext 
+weakenΘ-term ext (var x ok) with compatΘ-∅ ext 
 ... | refl = var x ok
 weakenΘ-term ext (abs m t) = abs m (weakenΘ-term ext t)
-weakenΘ-term ext (app t₁ t₂) with extendΘ-split ext 
-... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl with extendΘ-×ₘ ext₂ 
+weakenΘ-term ext (app t₁ t₂) with compatΘ-split ext 
+... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl with compatΘ-×ₘ ext₂ 
 ... | Ξ₂'' , ext₂' , refl = app (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂' t₂) 
-weakenΘ-term ext (unit ad) with extendΘ-∅ ext 
+weakenΘ-term ext (unit ad) with compatΘ-∅ ext 
 ... | refl = unit ad
-weakenΘ-term ext (letunit m t₁ t₂) with extendΘ-split ext 
-... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl with extendΘ-×ₘ ext₁ 
+weakenΘ-term ext (letunit m t₁ t₂) with compatΘ-split ext 
+... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl with compatΘ-×ₘ ext₁ 
 ... | Ξ₁'' , ext₁' , refl = letunit m (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂ t₂)
-weakenΘ-term ext (pair t₁ t₂) with extendΘ-split ext 
+weakenΘ-term ext (pair t₁ t₂) with compatΘ-split ext 
 ... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl = pair (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂ t₂) 
-weakenΘ-term ext (letpair m t₁ t₂) with extendΘ-split ext  
-... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl with extendΘ-×ₘ ext₁ 
+weakenΘ-term ext (letpair m t₁ t₂) with compatΘ-split ext  
+... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl with compatΘ-×ₘ ext₁ 
 ... | Ξ₁'' , ext₁' , refl = letpair m (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂ t₂)
 weakenΘ-term ext (inl t) = inl (weakenΘ-term ext t)
 weakenΘ-term ext (inr t) = inr (weakenΘ-term ext t)
-weakenΘ-term ext (case m t₀ t₁ t₂) with extendΘ-split ext  
-... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl with extendΘ-×ₘ ext₁ 
+weakenΘ-term ext (case m t₀ t₁ t₂) with compatΘ-split ext  
+... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl with compatΘ-×ₘ ext₁ 
 ... | Ξ₁'' , ext₁' , refl = case m (weakenΘ-term ext₁' t₀) (weakenΘ-term ext₂ t₁) (weakenΘ-term ext₂ t₂)
 weakenΘ-term ext (roll t)   = roll (weakenΘ-term ext t)
 weakenΘ-term ext (unroll t) = unroll (weakenΘ-term ext t)
-weakenΘ-term ext (unit● ad) with extendΘ-∅ ext 
+weakenΘ-term ext (unit● ad) with compatΘ-∅ ext 
 ... | refl  = unit● ad
-weakenΘ-term ext (letunit● ano t₁ t₂) 
-  with extendΘ-preserves-all-no-omega ext ano | extendΘ-split ext
-... | ano' | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl = letunit● ano' (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂ t₂)
-weakenΘ-term ext (pair● ano t₁ t₂)
-  with extendΘ-preserves-all-no-omega ext ano | extendΘ-split ext
-... | ano' | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl = pair● ano' (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂ t₂)
-weakenΘ-term ext (letpair● ano t₁ t₂) 
-  with extendΘ-preserves-all-no-omega ext ano | extendΘ-split ext
-... | ano' | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl = letpair● ano' (weakenΘ-term ext₁ t₁) (weakenΘ-term (ext-there (ext-there ext₂)) t₂)
+weakenΘ-term ext (letunit● t₁ t₂) 
+  with compatΘ-split ext
+... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl = letunit● (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂ t₂)
+weakenΘ-term ext (pair● t₁ t₂)
+  with compatΘ-split ext
+... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl = pair● (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂ t₂)
+weakenΘ-term ext (letpair● t₁ t₂) 
+  with compatΘ-split ext
+... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl = letpair● (weakenΘ-term ext₁ t₁) (weakenΘ-term (compat-skip (compat-skip ext₂)) t₂)
 weakenΘ-term ext (inl● t) = inl● (weakenΘ-term ext t)
 weakenΘ-term ext (inr● t) = inr● (weakenΘ-term ext t)
-weakenΘ-term ext (case● ano t t₁ t₂ t₃) with extendΘ-preserves-all-no-omega ext ano 
-... | ano' with extendΘ-split ext 
-... | _ , _ , ext₁₂ , ext₃ , refl with extendΘ-split ext₁₂ 
-... | _ , _ , ext₁ , ext₂ , refl with extendΘ-×ₘ ext₃ 
-... | _ , ext₃' , refl = case● ano' (weakenΘ-term ext₁ t) (weakenΘ-term (ext-there ext₂) t₁) (weakenΘ-term (ext-there ext₂) t₂) (weakenΘ-term ext₃' t₃)
-weakenΘ-term ext (var● x ad ok) with extendΘ-preserves-varOk● ext ok 
+weakenΘ-term ext (case● t t₁ t₂ t₃) 
+  with compatΘ-split ext 
+... | _ , _ , ext₁₂ , ext₃ , refl with compatΘ-split ext₁₂ 
+... | _ , _ , ext₁ , ext₂ , refl with compatΘ-×ₘ ext₃ 
+... | _ , ext₃' , refl = case● (weakenΘ-term ext₁ t) (weakenΘ-term (compat-skip ext₂) t₁) (weakenΘ-term (compat-skip ext₂) t₂) (weakenΘ-term ext₃' t₃)
+weakenΘ-term ext (var● x ad ok) with compatΘ-preserves-varOk● ext ok 
 ... | x' , ok' = var● x' ad ok'
-weakenΘ-term ext (pin ano t₁ t₂) 
-  with extendΘ-preserves-all-no-omega ext ano | extendΘ-split ext
-... | ano' | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl = pin ano' (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂ t₂)
-weakenΘ-term ext (fwd ano t₁ t₂) 
-  with extendΘ-preserves-all-no-omega ext ano | extendΘ-split ext
-... | ano' | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl 
-  with extendΘ-×ₘ ext₁ | extendΘ-×ₘ ext₂ 
-... | Ξ₁'' , ext₁' , refl | Ξ₂'' , ext₂' , refl = fwd ano' (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂' t₂) 
-weakenΘ-term ext (bwd ano t₁ t₂) 
-  with extendΘ-preserves-all-no-omega ext ano | extendΘ-split ext
-... | ano' | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl   
-  with extendΘ-×ₘ ext₁ | extendΘ-×ₘ ext₂ 
-... | Ξ₁'' , ext₁' , refl | Ξ₂'' , ext₂' , refl = bwd ano' (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂' t₂)  
+weakenΘ-term ext (pin t₁ t₂) 
+  with compatΘ-split ext
+... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl = pin (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂ t₂)
+weakenΘ-term ext (fwd t₁ t₂) 
+  with compatΘ-split ext
+... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl 
+  with compatΘ-×ₘ ext₁ | compatΘ-×ₘ ext₂ 
+... | Ξ₁'' , ext₁' , refl | Ξ₂'' , ext₂' , refl = fwd (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂' t₂) 
+weakenΘ-term ext (bwd t₁ t₂) 
+  with compatΘ-split ext
+... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl   
+  with compatΘ-×ₘ ext₁ | compatΘ-×ₘ ext₂ 
+... | Ξ₁'' , ext₁' , refl | Ξ₂'' , ext₂' , refl = bwd (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂' t₂)  
   
-
---   app  : ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ σ π τ} -> 
---          ∀ {πΞ₂} -> π ×ₑ Ξ₂ is πΞ₂ -> 
---          ∀ {Ξ₁+πΞ₂} -> Ξ₁ +L πΞ₂ ≡ just Ξ₁+πΞ₂ -> 
---          Term Γ Δ₁ Θ Ξ₁ (σ # π ~> τ) ->          
---          Term Γ Δ₂ Θ Ξ₂ σ -> 
---          Term Γ (Δ₁ +ₑ π ×ₑ Δ₂) Θ Ξ₁+πΞ₂ τ
-
---   pair : ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ σ τ} -> 
---          ∀ {Ξ₁+Ξ₂} -> Ξ₁ +L Ξ₂ ≡ just Ξ₁+Ξ₂ -> 
---          Term Γ Δ₁ Θ Ξ₁ σ -> 
---          Term Γ Δ₂ Θ Ξ₂ τ -> 
---          Term Γ (Δ₁ +ₑ Δ₂) Θ (Ξ₁+Ξ₂) (σ ⊗ τ) 
-
---   letpair : 
---          ∀ {Γ Δ₀ Δ Θ Ξ₀ Ξ σ τ τ'} -> (π : Multiplicity) -> 
---          ∀ {πΞ₀} {Ξ'} -> 
---          π ×ₑ Ξ₀ is πΞ₀ -> πΞ₀ +L Ξ ≡ just Ξ' -> 
---          Term Γ Δ₀ Θ Ξ₀ (σ ⊗ τ) -> 
---          Term (σ ∷ τ ∷ Γ) (just π ∷ just π ∷ Δ) Θ Ξ τ' -> 
---          Term Γ (π ×ₑ Δ₀ +ₑ Δ) Θ Ξ' τ' 
-         
---   inl  : ∀ {Γ Δ Θ Ξ} {σ τ} -> 
---          Term Γ Δ Θ Ξ σ -> 
---          Term Γ Δ Θ Ξ (σ ⊕ τ) 
-
---   inr : ∀ {Γ Δ Θ Ξ} {σ τ} -> 
---          Term Γ Δ Θ Ξ τ -> 
---          Term Γ Δ Θ Ξ (σ ⊕ τ) 
-
---   case : ∀ {Γ Δ₀ Δ Θ Ξ₀ Ξ σ τ τ'} -> (π : Multiplicity) -> 
---          ∀ {πΞ₀} {Ξ'} -> 
---          π ×ₑ Ξ₀ is πΞ₀ -> πΞ₀ +L Ξ ≡ just Ξ' -> 
---          Term Γ Δ₀ Θ Ξ₀ (σ ⊕ τ) ->
---          Term (σ ∷ Γ) (just π ∷ Δ) Θ Ξ τ' -> 
---          Term (τ ∷ Γ) (just π ∷ Δ) Θ Ξ τ' -> 
---          Term Γ (π ×ₑ Δ₀ +ₑ Δ) Θ Ξ' τ' 
-
---   unit : ∀ {Γ Δ Θ Ξ} -> 
---          All discardable Δ -> 
---          all-nothing Ξ -> 
---          Term Γ Δ Θ Ξ tunit 
-
---   letunit : 
---           ∀ {Γ Δ₀ Δ Θ Ξ₀ Ξ τ} -> (π : Multiplicity) -> 
---           ∀ {πΞ₀} {Ξ'} -> 
---           π ×ₑ Ξ₀ is πΞ₀ -> πΞ₀ +L Ξ ≡ just Ξ' -> 
---           Term Γ Δ₀ Θ Ξ₀ tunit ->
---           Term Γ Δ Θ Ξ τ -> 
---           Term Γ (π ×ₑ Δ₀ +ₑ Δ) Θ Ξ' τ
-
---   roll : ∀ {Γ Δ Θ Ξ τ} -> 
---          Term Γ Δ Θ Ξ (substTy τ (μ τ)) -> 
---          Term Γ Δ Θ Ξ (μ τ) 
-
---   unroll : ∀ {Γ Δ Θ Ξ τ} -> 
---            Term Γ Δ Θ Ξ (μ τ) -> 
---            Term Γ Δ Θ Ξ (substTy τ (μ τ))
-  
-
---   unit● : ∀ {Γ Δ Θ Ξ} -> 
---           All discardable Δ -> 
---           all-nothing Ξ -> 
---           Term Γ Δ Θ Ξ (tunit ●)
-
---   letunit● : 
---           ∀ {Γ Δ₀ Δ Θ Ξ₀ Ξ τ} -> 
---           ∀ {Ξ'} -> 
---           Ξ₀ +ₑ Ξ is Ξ' -> 
---           Term Γ Δ₀ Θ Ξ₀ (tunit ●) ->
---           Term Γ Δ Θ Ξ (τ ●)  -> 
---           Term Γ (Δ₀ +ₑ Δ) Θ Ξ' (τ ●)
-
---   pair● : ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ σ τ} -> 
---          ∀ {Ξ₁+Ξ₂} -> Ξ₁ +ₑ Ξ₂ is Ξ₁+Ξ₂ -> 
---          Term Γ Δ₁ Θ Ξ₁ (σ ●) -> 
---          Term Γ Δ₂ Θ Ξ₂ (τ ●) -> 
---          Term Γ (Δ₁ +ₑ Δ₂) Θ (Ξ₁+Ξ₂) ((σ ⊗ τ) ●) 
-
---   letpair● : 
---          ∀ {Γ Δ₀ Δ Θ Ξ₀ Ξ σ τ τ'} -> 
---          ∀ {Ξ'} -> 
---          Ξ₀ +ₑ Ξ is Ξ' -> 
---          Term Γ Δ₀ Θ Ξ₀ ((σ ⊗ τ) ●) -> 
---          Term Γ Δ  (σ ∷ τ ∷ Θ) (just one ∷ just one ∷ Ξ) (τ' ●) -> 
---          Term Γ (Δ₀ +ₑ Δ) Θ Ξ' (τ' ●)
-
---   inl●  : ∀ {Γ Δ Θ Ξ} {σ τ} -> 
---          Term Γ Δ Θ Ξ (σ ●) -> 
---          Term Γ Δ Θ Ξ ((σ ⊕ τ) ●)
-
---   inr● : ∀ {Γ Δ Θ Ξ} {σ τ} -> 
---          Term Γ Δ Θ Ξ (τ ●) -> 
---          Term Γ Δ Θ Ξ ((σ ⊕ τ) ●)
-
---   case● : ∀ {Γ Δ₀ Δ Δ' Θ Ξ₀ Ξ Ξ' σ τ τ'} -> 
---          ∀ {Ξ''} -> 
---          Ξ₀ +ₑ Ξ is Ξ'' -> 
---          all-nothing Ξ' -> 
---          Term Γ Δ₀ Θ Ξ₀ ((σ ⊕ τ) ●) ->
---          Term Γ Δ  (σ ∷ Θ) (just one ∷ Ξ) (τ' ●) -> 
---          Term Γ Δ  (τ ∷ Θ) (just one ∷ Ξ) (τ' ●) -> 
---          Term Γ Δ' Θ Ξ' (τ # omega ~> tbool) -> 
---          Term Γ (Δ₀ +ₑ Δ +ₑ omega ×ₑ Δ') Θ Ξ'' (τ' ●)
-
---   var● : ∀ {Γ Δ Θ Ξ τ} -> 
---          (x : Θ ∋ τ) -> All discardable Δ -> varOk● x Ξ ->
---          Term Γ Δ Θ Ξ (τ ●)
-
---   pin : ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ σ τ} -> 
---         ∀ {Ξ₁+Ξ₂} -> Ξ₁ +ₑ Ξ₂ is Ξ₁+Ξ₂ -> 
---         Term Γ Δ₁ Θ Ξ₁ (σ ●) ->          
---         Term Γ Δ₂ Θ Ξ₂ (σ # omega ~> τ ●)  -> 
---         Term Γ (Δ₁ +ₑ Δ₂) Θ Ξ₁+Ξ₂ (τ ●)
-
---   fwd : ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ σ τ} -> 
---         all-nothing Ξ₁ -> 
---         all-nothing Ξ₂ -> 
---         Term Γ Δ₁ Θ Ξ₁ (σ ● ⊸ τ ●) -> 
---         Term Γ Δ₂ Θ Ξ₂ σ -> 
---         Term Γ (omega ×ₑ Δ₁ +ₑ omega ×ₑ Δ₂) Θ (Data.Vec.replicate nothing) τ 
-
---   bwd : ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ σ τ} -> 
---         all-nothing Ξ₁ -> 
---         all-nothing Ξ₂ -> 
---         Term Γ Δ₁ Θ Ξ₁ (σ ● ⊸ τ ●) -> 
---         Term Γ Δ₂ Θ Ξ₂ τ -> 
---         Term Γ (omega ×ₑ Δ₁ +ₑ omega ×ₑ Δ₂) Θ (Data.Vec.replicate nothing) σ
-
-
--- module TermExamples where
---   open TyExamples
-  
---   nil : Term [] [] [] [] natlist 
---   nil = roll (inl (unit [] [])) 
-
---   z : Term [] [] [] [] nat 
---   z = roll (inl (unit [] []))
-
---   id : ∀ {σ π} -> Term [] [] [] [] (σ # π ~> σ) 
---   id {π = π} = abs π (var vz (var-here []) [])
-
--- data Residual : (Θ : TyEnv) -> MultEnvL (length Θ) -> Ty 0F -> Set 
-
--- data Value : (Θ : TyEnv) -> (MultEnvL (length Θ)) -> Ty 0F -> Set where 
---   abs : ∀ {Θ Ξ σ τ} -> 
---         (π : Multiplicity) -> 
---         Term (σ ∷ []) (just π ∷ []) Θ Ξ τ -> 
---         Value Θ Ξ (σ # π ~> τ) 
-  
---   unit : ∀ {Θ Ξ} -> all-nothing Ξ -> 
---          Value Θ Ξ tunit 
-
---   pair : ∀ {Θ Ξ₁ Ξ₂ σ τ} -> 
---          ∀ {Ξ} -> Ξ₁ +ₑ Ξ₂ is Ξ -> 
---          Value Θ Ξ₁ σ -> 
---          Value Θ Ξ₂ τ -> 
---          Value Θ Ξ (σ ⊗ τ) 
-
---   inl : ∀ {Θ Ξ σ τ} -> 
---         Value Θ Ξ σ -> 
---         Value Θ Ξ (σ ⊕ τ) 
-
---   inr : ∀ {Θ Ξ σ τ} -> 
---         Value Θ Ξ τ -> 
---         Value Θ Ξ (σ ⊕ τ) 
-
---   roll : ∀ {Θ Ξ τ} -> 
---          Value Θ Ξ (substTy τ (μ τ)) ->
---          Value Θ Ξ (μ τ) 
-
---   red : ∀ {Θ Ξ τ} -> 
---         Residual Θ Ξ (τ ●) -> Value Θ Ξ (τ ●) 
-
--- data Residual where
---   var● : ∀ {Θ Ξ τ} -> 
---          (x : Θ ∋ τ) -> varOk● x Ξ ->
---          Residual Θ Ξ (τ ●)
-
---   unit● : ∀ {Θ Ξ} -> 
---           all-nothing Ξ -> 
---           Residual Θ Ξ (tunit ●)
-
---   letunit● : 
---           ∀ {Θ Ξ₀ Ξ τ} -> 
---           ∀ {Ξ'} -> 
---           Ξ₀ +ₑ Ξ is Ξ' -> 
---           Residual Θ Ξ₀ (tunit ●) ->
---           Residual Θ Ξ (τ ●)  -> 
---           Residual Θ Ξ' (τ ●)
-  
---   pair● : ∀ {Θ Ξ₁ Ξ₂ Ξ σ τ} -> 
---           Ξ₁ +ₑ Ξ₂ is Ξ -> 
---           Residual Θ Ξ₁ (σ ●) -> 
---           Residual Θ Ξ₂ (τ ●) -> 
---           Residual Θ Ξ  ((σ ⊗ τ) ●) 
-
---   letpair● : 
---          ∀ {Θ Ξ₀ Ξ σ τ τ'} -> 
---          ∀ {Ξ'} -> 
---          Ξ₀ +ₑ Ξ is Ξ' -> 
---          Residual Θ Ξ₀ ((σ ⊗ τ) ●) -> 
---          Residual (σ ∷ τ ∷ Θ) (just one ∷ just one ∷ Ξ) (τ' ●) -> 
---          Residual Θ Ξ' (τ' ●)
-
---   inl●  : ∀ {Θ Ξ} {σ τ} -> 
---          Residual Θ Ξ (σ ●) -> 
---          Residual Θ Ξ ((σ ⊕ τ) ●)
-
---   inr● : ∀ {Θ Ξ} {σ τ} -> 
---          Residual Θ Ξ (τ ●) -> 
---          Residual Θ Ξ ((σ ⊕ τ) ●)
-
---   case● : ∀ {Θ Ξ₀ Ξ Ξ' σ τ τ'} -> 
---          ∀ {Ξ''} -> 
---          Ξ₀ +ₑ Ξ is Ξ'' -> 
---          all-nothing Ξ' -> 
---          Residual Θ Ξ₀ ((σ ⊕ τ) ●) ->
---          Residual (σ ∷ Θ) (just one ∷ Ξ) (τ' ●) -> 
---          Residual (τ ∷ Θ) (just one ∷ Ξ) (τ' ●) -> 
---          Value Θ Ξ' (τ # omega ~> tbool) -> 
---          Residual Θ Ξ'' (τ' ●)
-
---   pin : ∀ {Θ Ξ₁ Ξ₂ σ τ} -> 
---         ∀ {Ξ₁+Ξ₂} -> Ξ₁ +ₑ Ξ₂ is Ξ₁+Ξ₂ -> 
---         Residual Θ Ξ₁ (σ ●) ->          
---         Residual Θ Ξ₂ (σ # omega ~> τ ●)  -> 
---         Residual Θ Ξ₁+Ξ₂ (τ ●)
-
--- value2term : ∀ {Θ Ξ τ} -> Value Θ Ξ τ -> Term [] [] Θ Ξ τ       
--- residual2term : ∀ {Θ Ξ τ} -> Residual Θ Ξ τ -> Term [] [] Θ Ξ τ 
-
--- value2term (abs π t) = abs π t
--- value2term (unit emp) = unit [] emp
--- value2term (pair disj v₁ v₂) = pair disj (value2term v₁) (value2term v₂)
--- value2term (inl v) = inl (value2term v)
--- value2term (inr v) = inr (value2term v)
--- value2term (roll v) = roll (value2term v)
--- value2term (red r) = residual2term r   
-         
--- residual2term (var● x varOk) = var● x [] varOk
--- residual2term (unit● emp) = unit● [] emp
--- residual2term (letunit● disj r r₁) = letunit● disj (residual2term r) (residual2term r₁)
--- residual2term (pair● x r r₁) = pair● x (residual2term r) (residual2term r₁)
--- residual2term (letpair● x r r₁) = letpair● x (residual2term r) (residual2term r₁)
--- residual2term (inl● r) = inl● (residual2term r)
--- residual2term (inr● r) = inr● (residual2term r)
--- residual2term (case● disj emp r r₁ r₂ v₁) = case● disj emp (residual2term r) (residual2term r₁) (residual2term r₂) (value2term v₁)
-
-

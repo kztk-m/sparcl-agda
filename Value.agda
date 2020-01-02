@@ -152,7 +152,7 @@ data Residual Θ where
         (ano : all-no-omega (Ξ₁ +ₘ Ξ₂)) -> 
         Residual Θ Ξ₁ (A ●) {i} ->          
         (v : Value    Θ Ξ₂ (A # omega ~> B ●) {i}) -> 
-        Residual Θ (Ξ₁ +ₘ Ξ₂) (B ●) {↑ i} 
+        Residual Θ (Ξ₁ +ₘ Ξ₂) ((A ⊗ B) ●) {↑ i} 
 
 open ≡-Reasoning
 
@@ -285,44 +285,44 @@ when --without-K is turning on.
 
 weakenΘ-value : 
   ∀ {Θ Ξ Θ' Ξ' A i} -> 
-  extendΘ Θ Ξ Θ' Ξ' -> 
+  compatΘ Θ Ξ Θ' Ξ' -> 
   Value Θ Ξ A {i} -> Value Θ' Ξ' A
 weakenΘ-residual :  
   ∀ {Θ Ξ Θ' Ξ' A i} -> 
-  extendΘ Θ Ξ Θ' Ξ' -> 
+  compatΘ Θ Ξ Θ' Ξ' -> 
   Residual Θ Ξ A {i} -> Residual Θ' Ξ' A
 
 weakenΘ-valEnv : 
   ∀ Γ {Δ Θ Ξ Θ' Ξ' i} -> 
-  extendΘ Θ Ξ Θ' Ξ' -> 
+  compatΘ Θ Ξ Θ' Ξ' -> 
   ValEnv Γ Δ {i} Θ Ξ -> ValEnv Γ Δ Θ' Ξ' 
 
 weakenΘ-mult :
   ∀ {Θ Ξ Θ' Ξ' m A i} -> 
-  extendΘ Θ Ξ Θ' Ξ' -> 
+  compatΘ Θ Ξ Θ' Ξ' -> 
   mult (λ Θ Ξ -> Value Θ Ξ A {i}) m Θ  Ξ -> 
   mult (λ Θ Ξ -> Value Θ Ξ A) m Θ' Ξ' 
 
 weakenΘ-value ext (clo {Γ' = Γ'} m refl ano θ t) = 
-  case* extendΘ-split ext of λ { 
+  case* compatΘ-split ext of λ { 
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      clo m refl (extendΘ-preserves-all-no-omega ext ano) 
+      clo m refl (compatΘ-preserves-all-no-omega ext ano) 
                  (weakenΘ-valEnv Γ' ext₁ θ)
                  (weakenΘ-term ext₂ t) 
   }
---  with extendΘ-preserves-all-no-omega ext ano | extendΘ-split ext 
+--  with compatΘ-preserves-all-no-omega ext ano | compatΘ-split ext 
 -- ... | ano' | _ , _ , ext₁ , ext₂ , refl = 
 --   clo m refl ano' {!!} (weakenΘ-term ext₂ t)
 --   clo m refl ano' (weakenΘ-valEnv Γ' ext₁ θ) (weakenΘ-term ext₂ t)
 weakenΘ-value ext (unit refl) = 
-  case* extendΘ-∅ ext of 
+  case* compatΘ-∅ ext of 
   λ { refl -> unit refl } 
--- with extendΘ-∅ ext 
+-- with compatΘ-∅ ext 
 -- ... | refl = unit refl
 weakenΘ-value ext (pair refl ano v₁ v₂) = 
-  case* extendΘ-split ext of λ {
+  case* compatΘ-split ext of λ {
    (_ , _ , ext₁ , ext₂ , refl) -> 
-     pair refl (extendΘ-preserves-all-no-omega ext ano) 
+     pair refl (compatΘ-preserves-all-no-omega ext ano) 
             (weakenΘ-value ext₁ v₁) (weakenΘ-value ext₂ v₂)
   } 
 weakenΘ-value ext (inl v) = inl (weakenΘ-value ext v)
@@ -332,97 +332,100 @@ weakenΘ-value ext (red x) = red (weakenΘ-residual ext x)
 
 
 weakenΘ-mult ext (mult-zero refl) = 
-  case* extendΘ-∅ ext  of λ {
+  case* compatΘ-∅ ext  of λ {
     refl -> mult-zero refl
   }
--- with extendΘ-∅ ext 
+-- with compatΘ-∅ ext 
 -- ... | refl = mult-zero refl
 weakenΘ-mult ext (mult-one v) = mult-one (weakenΘ-value ext v)
 weakenΘ-mult ext (mult-omega v refl) = 
-  case* extendΘ-∅ ext of λ { 
+  case* compatΘ-∅ ext of λ { 
     refl -> mult-omega (weakenΘ-value ext v) refl 
   }
--- with extendΘ-∅ ext 
+-- with compatΘ-∅ ext 
 -- ... | refl = mult-omega (weakenΘ-value ext v) refl 
 
 
 weakenΘ-valEnv [] ext refl = 
-  case* extendΘ-∅ ext of λ {
+  case* compatΘ-∅ ext of λ {
     refl -> refl
   } 
 weakenΘ-valEnv (_ ∷ Γ) {_ ∷ Δ} ext (tup Ξ₁ Ξ₂ refl mv θ) = 
-  case* extendΘ-split ext of λ { 
+  case* compatΘ-split ext of λ { 
     (Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl) -> 
       tup Ξ₁' Ξ₂' refl (weakenΘ-mult ext₁ mv) (weakenΘ-valEnv Γ ext₂ θ)  
   }  
  
 weakenΘ-residual ext unit● = 
-  case* extendΘ-∅ ext of λ { 
+  case* compatΘ-∅ ext of λ { 
     refl -> unit●
   }
 
 weakenΘ-residual ext (letunit● ano r₁ r₂) = 
-  case* extendΘ-split ext of λ {
+  case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      letunit● (extendΘ-preserves-all-no-omega ext ano) 
+      letunit● (compatΘ-preserves-all-no-omega ext ano) 
                (weakenΘ-residual ext₁ r₁)
                (weakenΘ-residual ext₂ r₂)
   }
 
 weakenΘ-residual ext (pair● ano r₁ r₂) = 
-  case* extendΘ-split ext of λ {
+  case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      pair● (extendΘ-preserves-all-no-omega ext ano) 
+      pair● (compatΘ-preserves-all-no-omega ext ano) 
                (weakenΘ-residual ext₁ r₁)
                (weakenΘ-residual ext₂ r₂)
   }
 
 weakenΘ-residual ext (letpair● ano r₁ r₂) = 
-  case* extendΘ-split ext of λ {
+  case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      letpair● (extendΘ-preserves-all-no-omega ext ano) 
+      letpair● (compatΘ-preserves-all-no-omega ext ano) 
                (weakenΘ-residual ext₁ r₁)
-               (weakenΘ-residual (ext-there (ext-there ext₂)) r₂)
+               (weakenΘ-residual (compat-skip (compat-skip ext₂)) r₂)
   }
   
 weakenΘ-residual ext (inl● r) = inl● (weakenΘ-residual ext r)
 weakenΘ-residual ext (inr● r) = inr● (weakenΘ-residual ext r)
-weakenΘ-residual ext (case● {Γ₁ = Γ₁} {Γ₂} ano r refl ano₁ θ₁ t₁ θ₂ t₂ v) with extendΘ-split ext 
-... | _ , _ , ext₁₂ , ext₃ , refl with extendΘ-split ext₁₂ 
-... | _ , _ , ext₁ , ext₂ , refl with extendΘ-×ₘ ext₃ 
-... | _ , ext₃' , refl with extendΘ-split ext₂ 
+weakenΘ-residual ext (case● {Γ₁ = Γ₁} {Γ₂} ano r refl ano₁ θ₁ t₁ θ₂ t₂ v) with compatΘ-split ext 
+... | _ , _ , ext₁₂ , ext₃ , refl with compatΘ-split ext₁₂ 
+... | _ , _ , ext₁ , ext₂ , refl with compatΘ-×ₘ ext₃ 
+... | _ , ext₃' , refl with compatΘ-split ext₂ 
 ... | _ , _ , extₑ , extₜ , refl = 
-    case● (extendΘ-preserves-all-no-omega ext ano)
+    case● (compatΘ-preserves-all-no-omega ext ano)
           (weakenΘ-residual ext₁ r)
           refl 
-          (extendΘ-preserves-all-no-omega ext₂ ano₁)
+          (compatΘ-preserves-all-no-omega ext₂ ano₁)
           (weakenΘ-valEnv Γ₁ extₑ θ₁)
-          (weakenΘ-term   (ext-there extₜ) t₁) 
+          (weakenΘ-term   (compat-skip extₜ) t₁) 
           (weakenΘ-valEnv Γ₂ extₑ θ₂)
-          (weakenΘ-term   (ext-there extₜ) t₂) 
+          (weakenΘ-term   (compat-skip extₜ) t₂) 
           (weakenΘ-value  ext₃' v) 
   
 weakenΘ-residual ext (var● x ok) = 
-  case* extendΘ-preserves-varOk● ext ok of λ {
+  case* compatΘ-preserves-varOk● ext ok of λ {
     (x' , ok') -> var● x' ok'
   }
 
 weakenΘ-residual ext (pin ano r v) = 
-  case* extendΘ-split ext of λ {
+  case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-       pin (extendΘ-preserves-all-no-omega ext ano)
+       pin (compatΘ-preserves-all-no-omega ext ano)
            (weakenΘ-residual ext₁ r) 
            (weakenΘ-value ext₂ v)
   }
- 
 
--- weakenΘ-valEnv []       ext refl with extendΘ-∅ ext 
+
+
+
+
+-- weakenΘ-valEnv []       ext refl with compatΘ-∅ ext 
 -- ... | refl  = refl
--- weakenΘ-valEnv (x ∷ Γ) {m ∷ Δ} ext (tup Ξ₁ Ξ₂ refl mv θ) with extendΘ-split ext
--- weakenΘ-valEnv (x ∷ Γ) {_ ∷ Δ} ext (tup .∅ Ξ₂ refl (mult-zero refl) θ) | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl with extendΘ-∅ ext₁ 
+-- weakenΘ-valEnv (x ∷ Γ) {m ∷ Δ} ext (tup Ξ₁ Ξ₂ refl mv θ) with compatΘ-split ext
+-- weakenΘ-valEnv (x ∷ Γ) {_ ∷ Δ} ext (tup .∅ Ξ₂ refl (mult-zero refl) θ) | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl with compatΘ-∅ ext₁ 
 -- ... | refl = tup Ξ₁' Ξ₂' refl (mult-zero refl) (weakenΘ-valEnv Γ ext₂ θ) 
 -- weakenΘ-valEnv (x ∷ Γ) {_ ∷ Δ} ext (tup Ξ₁ Ξ₂ refl (mult-one v) θ) | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = tup Ξ₁' Ξ₂' refl (mult-one (weakenΘ-value ext₁ v)) (weakenΘ-valEnv Γ ext₂ θ)  
--- weakenΘ-valEnv (x ∷ Γ) {_ ∷ Δ} ext (tup .∅ Ξ₂ refl (mult-omega v refl) θ) | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl with extendΘ-∅ ext₁ 
+-- weakenΘ-valEnv (x ∷ Γ) {_ ∷ Δ} ext (tup .∅ Ξ₂ refl (mult-omega v refl) θ) | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl with compatΘ-∅ ext₁ 
 -- ... | refl = tup Ξ₁' Ξ₂' refl (mult-omega (weakenΘ-value ext₁ v) refl) (weakenΘ-valEnv Γ ext₂ θ) 
 
 
