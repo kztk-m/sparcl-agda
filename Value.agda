@@ -56,7 +56,7 @@ data Value Θ where
     ∀ {Ξ Ξ' Γ' Δ' A B Ξₜ i} -> 
     (m : Multiplicity) -> 
     (spΞ : Ξ' +ₘ Ξₜ ≡ Ξ) -> 
-    (ano : all-no-omega Ξ) -> 
+--    (ano : all-no-omega Ξ) -> 
     (θ : ValEnv Γ' Δ' {i} Θ Ξ' ) -> 
     (t : Term (A ∷ Γ') (M→M₀ m ∷ Δ') Θ Ξₜ B) ->
     Value Θ Ξ (A # m ~> B) {↑ i} 
@@ -69,7 +69,7 @@ data Value Θ where
   pair : 
     ∀ {Ξ Ξ₁ Ξ₂ A B i} -> 
     (spΞ : Ξ₁ +ₘ Ξ₂ ≡ Ξ) ->
-    (ano : all-no-omega Ξ) -> 
+--    (ano : all-no-omega Ξ) -> 
     Value Θ Ξ₁ A {i} ->
     Value Θ Ξ₂ B {i} ->
     Value Θ Ξ (A ⊗ B) {↑ i} 
@@ -101,21 +101,21 @@ data Residual Θ where
 
   letunit● : 
     ∀ {Ξ₀ Ξ A i} -> 
-    (ano : all-no-omega (Ξ₀ +ₘ Ξ)) -> 
+--    (ano : all-no-omega (Ξ₀ +ₘ Ξ)) -> 
     Residual Θ Ξ₀ (tunit ●) {i} ->
     Residual Θ Ξ  (A ●) {i} -> 
     Residual Θ (Ξ₀ +ₘ Ξ) (A ●) {↑ i} 
 
   pair● : 
     ∀ {Ξ₁ Ξ₂ A B i} -> 
-    (ano : all-no-omega (Ξ₁ +ₘ Ξ₂)) -> 
+--    (ano : all-no-omega (Ξ₁ +ₘ Ξ₂)) -> 
     Residual Θ Ξ₁ (A ●) {i} -> 
     Residual Θ Ξ₂ (B ●) {i} -> 
     Residual Θ (Ξ₁ +ₘ Ξ₂) ((A ⊗ B) ●) {↑ i} 
 
   letpair● : 
     ∀ {Ξ₀ Ξ A B C i} -> 
-    (ano : all-no-omega (Ξ₀ +ₘ Ξ)) -> 
+--    (ano : all-no-omega (Ξ₀ +ₘ Ξ)) -> 
     Residual Θ Ξ₀ ((A ⊗ B) ●) {i} -> 
     Residual (A ∷ B ∷ Θ) (one ∷ one ∷ Ξ) (C ●) {i} -> 
     Residual Θ (Ξ₀ +ₘ Ξ) (C ●) {↑ i}
@@ -131,17 +131,17 @@ data Residual Θ where
     Residual Θ Ξ ((A ⊕ B) ●) {↑ i} 
 
   case● : 
-    ∀ {Ξ₀ Ξ Ξ' Ξₑ Ξₜ Γ₁ Γ₂ Δ₁ Δ₂ A B C i} -> 
-    (ano : all-no-omega (Ξ₀ +ₘ Ξ +ₘ omega ×ₘ Ξ')) -> 
+    ∀ {Ξ₀ Ξ Ξₑ Ξₜ Γ₁ Γ₂ Δ₁ Δ₂ A B C i} -> 
+--    (ano : all-no-omega (Ξ₀ +ₘ Ξ)) -> 
     Residual Θ Ξ₀ ((A ⊕ B) ●) {i} ->
     (spΞ : Ξₑ +ₘ Ξₜ ≡ Ξ) -> 
-    (ano₁ : all-no-omega Ξ) -> 
+--    (ano₁ : all-no-omega Ξ) -> 
     (θ₁ : ValEnv Γ₁ Δ₁ {i} Θ Ξₑ) ->
     (t₁ : Term Γ₁ Δ₁ (A ∷ Θ) (one ∷ Ξₜ) (C ●)) -> 
     (θ₂ : ValEnv Γ₂ Δ₂ {i} Θ Ξₑ) ->
     (t₂ : Term Γ₂ Δ₂ (B ∷ Θ) (one ∷ Ξₜ) (C ●)) -> 
-    (v : Value Θ Ξ' (C # omega ~> tbool) {i}) -> 
-    Residual Θ (Ξ₀ +ₘ Ξ +ₘ omega ×ₘ Ξ') (C ●) {↑ i} 
+    (v : Value [] ∅ (C # omega ~> tbool) {i}) -> 
+    Residual Θ (Ξ₀ +ₘ Ξ) (C ●) {↑ i} 
 
 
   var● : ∀ {Ξ A i} -> 
@@ -149,7 +149,7 @@ data Residual Θ where
          Residual Θ Ξ (A ●) {↑ i}
 
   pin : ∀ {Ξ₁ Ξ₂ A B i} -> 
-        (ano : all-no-omega (Ξ₁ +ₘ Ξ₂)) -> 
+--        (ano : all-no-omega (Ξ₁ +ₘ Ξ₂)) -> 
         Residual Θ Ξ₁ (A ●) {i} ->          
         (v : Value    Θ Ξ₂ (A # omega ~> B ●) {i}) -> 
         Residual Θ (Ξ₁ +ₘ Ξ₂) ((A ⊗ B) ●) {↑ i} 
@@ -303,10 +303,10 @@ weakenΘ-mult :
   mult (λ Θ Ξ -> Value Θ Ξ A {i}) m Θ  Ξ -> 
   mult (λ Θ Ξ -> Value Θ Ξ A) m Θ' Ξ' 
 
-weakenΘ-value ext (clo {Γ' = Γ'} m refl ano θ t) = 
+weakenΘ-value ext (clo {Γ' = Γ'} m refl θ t) = 
   case* compatΘ-split ext of λ { 
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      clo m refl (compatΘ-preserves-all-no-omega ext ano) 
+      clo m refl -- (compatΘ-preserves-all-no-omega ext ano) 
                  (weakenΘ-valEnv Γ' ext₁ θ)
                  (weakenΘ-term ext₂ t) 
   }
@@ -319,10 +319,10 @@ weakenΘ-value ext (unit refl) =
   λ { refl -> unit refl } 
 -- with compatΘ-∅ ext 
 -- ... | refl = unit refl
-weakenΘ-value ext (pair refl ano v₁ v₂) = 
+weakenΘ-value ext (pair refl v₁ v₂) = 
   case* compatΘ-split ext of λ {
    (_ , _ , ext₁ , ext₂ , refl) -> 
-     pair refl (compatΘ-preserves-all-no-omega ext ano) 
+     pair refl -- (compatΘ-preserves-all-no-omega ext ano) 
             (weakenΘ-value ext₁ v₁) (weakenΘ-value ext₂ v₂)
   } 
 weakenΘ-value ext (inl v) = inl (weakenΘ-value ext v)
@@ -361,56 +361,58 @@ weakenΘ-residual ext unit● =
     refl -> unit●
   }
 
-weakenΘ-residual ext (letunit● ano r₁ r₂) = 
+weakenΘ-residual ext (letunit● r₁ r₂) = 
   case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      letunit● (compatΘ-preserves-all-no-omega ext ano) 
+      letunit● -- (compatΘ-preserves-all-no-omega ext ano) 
                (weakenΘ-residual ext₁ r₁)
                (weakenΘ-residual ext₂ r₂)
   }
 
-weakenΘ-residual ext (pair● ano r₁ r₂) = 
+weakenΘ-residual ext (pair● r₁ r₂) = 
   case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      pair● (compatΘ-preserves-all-no-omega ext ano) 
+      pair● -- (compatΘ-preserves-all-no-omega ext ano) 
                (weakenΘ-residual ext₁ r₁)
                (weakenΘ-residual ext₂ r₂)
   }
 
-weakenΘ-residual ext (letpair● ano r₁ r₂) = 
+weakenΘ-residual ext (letpair● r₁ r₂) = 
   case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      letpair● (compatΘ-preserves-all-no-omega ext ano) 
+      letpair● -- (compatΘ-preserves-all-no-omega ext ano) 
                (weakenΘ-residual ext₁ r₁)
                (weakenΘ-residual (compat-skip (compat-skip ext₂)) r₂)
   }
   
 weakenΘ-residual ext (inl● r) = inl● (weakenΘ-residual ext r)
 weakenΘ-residual ext (inr● r) = inr● (weakenΘ-residual ext r)
-weakenΘ-residual ext (case● {Γ₁ = Γ₁} {Γ₂} ano r refl ano₁ θ₁ t₁ θ₂ t₂ v) with compatΘ-split ext 
-... | _ , _ , ext₁₂ , ext₃ , refl with compatΘ-split ext₁₂ 
-... | _ , _ , ext₁ , ext₂ , refl with compatΘ-×ₘ ext₃ 
-... | _ , ext₃' , refl with compatΘ-split ext₂ 
+weakenΘ-residual ext (case● {Γ₁ = Γ₁} {Γ₂} r refl θ₁ t₁ θ₂ t₂ v) with compatΘ-split ext 
+-- ... | _ , _ , ext₁₂ , ext₃ , refl with compatΘ-split ext₁₂ 
+... | _ , _ , ext₁ , ext₂ , refl 
+-- with compatΘ-×ₘ ext₃ 
+-- ... | _ , ext₃' , refl 
+   with compatΘ-split ext₂ 
 ... | _ , _ , extₑ , extₜ , refl = 
-    case● (compatΘ-preserves-all-no-omega ext ano)
+    case● -- (compatΘ-preserves-all-no-omega ext ano)
           (weakenΘ-residual ext₁ r)
           refl 
-          (compatΘ-preserves-all-no-omega ext₂ ano₁)
+          -- (compatΘ-preserves-all-no-omega ext₂ ano₁)
           (weakenΘ-valEnv Γ₁ extₑ θ₁)
           (weakenΘ-term   (compat-skip extₜ) t₁) 
           (weakenΘ-valEnv Γ₂ extₑ θ₂)
           (weakenΘ-term   (compat-skip extₜ) t₂) 
-          (weakenΘ-value  ext₃' v) 
+          (weakenΘ-value  adjust∅Θ v) 
   
 weakenΘ-residual ext (var● x ok) = 
   case* compatΘ-preserves-varOk● ext ok of λ {
     (x' , ok') -> var● x' ok'
   }
 
-weakenΘ-residual ext (pin ano r v) = 
+weakenΘ-residual ext (pin r v) = 
   case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-       pin (compatΘ-preserves-all-no-omega ext ano)
+       pin -- (compatΘ-preserves-all-no-omega ext ano)
            (weakenΘ-residual ext₁ r) 
            (weakenΘ-value ext₂ v)
   }

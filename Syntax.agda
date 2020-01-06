@@ -677,6 +677,10 @@ extendΘ : ∀ {Θ} -> compatΘ [] ∅ Θ ∅
 extendΘ {[]} = compat-[]
 extendΘ {_ ∷ Θ} = compat-ext-here extendΘ 
 
+adjust∅Θ : ∀ {Θ Θ'} -> compatΘ Θ ∅ Θ' ∅ 
+adjust∅Θ {[]} = extendΘ
+adjust∅Θ {_ ∷ Θ} = compat-reduce-here adjust∅Θ 
+
 compatΘ-∅ : ∀ {Θ Θ' Ξ'} -> compatΘ Θ ∅ Θ' Ξ' -> Ξ' ≡ ∅ 
 compatΘ-∅ compat-[] = refl 
 compatΘ-∅ (compat-reduce-here ext) = compatΘ-∅ ext 
