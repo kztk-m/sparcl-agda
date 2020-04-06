@@ -5,7 +5,7 @@ open import Syntax
 open import Data.List using (length ; [] ; _∷_ ) renaming ( _++_ to _++L_ ) 
 open import Data.Vec  using ([] ; _∷_  ) renaming ( _++_ to _++V_ )
 
-open import Data.Vec.All using (All ; [] ; _∷_)
+open import Data.Vec.Relation.Unary.All using (All ; [] ; _∷_)
 open import Data.Nat 
 
 open import Data.Product

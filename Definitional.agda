@@ -1,5 +1,72 @@
 {-# OPTIONS --without-K #-}
 
+{- 
+approx. 30 min is required to typecheck this file. 
+
+The profile says that the most of time consumption is due to
+termination checking, but I do not know how to deal with it.
+
+The following is the output of 
+
+   time agda -v0 -v profile:15 Definitional.agda +RTS -H1G -A128M -s > out.txt
+
+for Agda 2.6.0.1.
+
+Total                        2,201,917ms              
+Miscellaneous                      141ms              
+Termination                     25,203ms (2,139,370ms)
+Termination.Graph            2,097,672ms              
+Termination.Compare             16,210ms              
+Termination.RecCheck               283ms              
+Positivity                      47,761ms              
+Typing                             166ms     (7,260ms)
+Typing.CheckLHS                    768ms     (3,409ms)
+Typing.CheckLHS.UnifyIndices     2,640ms              
+Typing.With                      2,226ms              
+Typing.CheckRHS                  1,146ms              
+Typing.OccursCheck                 238ms              
+Typing.TypeSig                      73ms              
+Deserialization                  4,660ms              
+Serialization                      741ms     (1,183ms)
+Serialization.BinaryEncode         229ms              
+Serialization.BuildInterface       171ms              
+Serialization.Compress              31ms              
+Parsing                             34ms       (498ms)
+Parsing.OperatorsExpr              336ms              
+Parsing.OperatorsPattern           127ms              
+Scoping                            268ms       (299ms)
+Scoping.InverseScopeLookup          30ms              
+Coverage                           299ms              
+DeadCode                           207ms              
+Injectivity                         92ms              
+Import                              86ms              
+Highlighting                        64ms              
+
+Accumulated statistics
+A.Name  (fresh)           3,450
+A.Name (reused)           7,872
+A.QName  (fresh)          1,173
+A.QName (reused)        177,327
+Double  (fresh)               0
+Double (reused)               0
+Integer  (fresh)             12
+Integer (reused)         41,269
+Node  (fresh)           124,460
+Node (reused)         2,855,610
+Shared Term  (fresh)          0
+Shared Term (reused)          0
+String  (fresh)           1,242
+String (reused)          65,884
+Text  (fresh)                 1
+Text (reused)                 0
+attempted-constraints     1,292
+max-open-constraints         22
+max-open-metas               36
+metas                     4,034
+pointers  (fresh)             0
+pointers (reused)             0
+-}
+
 module Definitional where 
 
 open import Syntax 
@@ -90,7 +157,6 @@ module Interpreter where
     ∀ {Θ Ξ A} i -> 
     all-no-omega Ξ -> Residual Θ Ξ (A ●) -> i ⊢ (RValEnv Θ Ξ) ⇔ Value [] ∅ A 
 
-    
   eval : 
     ∀ {Θ Ξₑ Γ Δ Ξ A} i -> 
     all-no-omega (Ξₑ +ₘ Ξ) -> ValEnv Γ Δ Θ Ξₑ -> Term Γ Δ Θ Ξ A -> Delay (Value Θ (Ξₑ +ₘ Ξ) A) i 

@@ -2,7 +2,7 @@
 
 open import Data.Nat 
 open import Data.List renaming (_++_ to _++L_ )
-open import Data.Vec  renaming (_++_ to _++V_ ) 
+open import Data.Vec  hiding (length) renaming (_++_ to _++V_ ) 
 open import Data.Fin hiding (_+_ ; _≤_ )
 open import Data.Product
 open import Data.Maybe
@@ -61,7 +61,7 @@ module _ where
     ... | k , refl = k , +-suc k _ 
 
     weakenVarK : ∀ {m n k} -> k + m ≡ n -> Fin m -> Fin (k + m) 
-    weakenVarK {k = 0F} refl  x = x
+    weakenVarK {k = zero} refl  x = x
     weakenVarK {n = suc n} {suc k} eq x = suc (weakenVarK {n = n} {k = k} (suc-injective eq) x) 
 
   weakenVar : ∀ {m n} -> m ≤ n -> Fin m -> Fin n 
@@ -69,9 +69,9 @@ module _ where
   ... | k , r' = subst Fin r' (weakenVarK r' x)
 
   substTyVar : ∀ {m n k} -> m + n ≤ k -> Fin (m + suc n) -> Ty k -> Ty k
-  substTyVar {0F} r 0F t = t
-  substTyVar {0F} r (suc x) t = tvar (weakenVar r x)  
-  substTyVar {suc m} {k = suc k} r 0F t = tvar zero 
+  substTyVar {zero} r zero t = t
+  substTyVar {zero} r (suc x) t = tvar (weakenVar r x)  
+  substTyVar {suc m} {k = suc k} r zero t = tvar zero 
   substTyVar {suc m} (s≤s r) (suc x) t = substTyVar {m} (≤-trans r (≤-step ≤-refl)) x t 
 
   weaken : ∀ {m n} -> m ≤ n -> Ty m -> Ty n 
@@ -224,13 +224,17 @@ _+ₘ_ : ∀ {n} -> MultEnv n -> MultEnv n -> MultEnv n
                            ; _≈_ = _≡_
                            ; _∙_ = _+ₘ_
                            ; ε = ∅
-                           ; isCommutativeMonoid = record { 
-                             isSemigroup = record { isMagma = record { isEquivalence =  Relation.Binary.PropositionalEquality.isEquivalence  ; 
-                                                                       ∙-cong = cong₂ (_+ₘ_) } ; 
-                                                    assoc = +ₘ-assoc } ; 
-                             identityˡ = ∅-lid ; 
-                             comm = +ₘ-comm }
+                           ; isCommutativeMonoid = record { isMonoid = +ₘ-isMonoid ; comm = +ₘ-comm }
+                             -- record { 
+                             -- isSemigroup = record { isMagma = record { isEquivalence =  Relation.Binary.PropositionalEquality.isEquivalence  ; 
+                             --                                           ∙-cong = cong₂ (_+ₘ_) } ; 
+                             --                        assoc = +ₘ-assoc } ; 
+                             -- ; identityˡ = ∅-lid 
+                             -- ; comm = +ₘ-comm }
                            } 
+  where 
+    +ₘ-isMonoid : IsMonoid _≡_ _+ₘ_ ∅ 
+    +ₘ-isMonoid = record { isSemigroup = record { isMagma = record { isEquivalence = Relation.Binary.PropositionalEquality.isEquivalence ; ∙-cong = cong₂ (_+ₘ_) } ; assoc = +ₘ-assoc } ; identity = ∅-lid , ∅-rid } 
 
 
 +ₘ-transpose : 
