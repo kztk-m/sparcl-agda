@@ -56,7 +56,6 @@ data Value Θ where
     ∀ {Ξ Ξ' Γ' Δ' A B Ξₜ i} -> 
     (m : Multiplicity) -> 
     (spΞ : Ξ' +ₘ Ξₜ ≡ Ξ) -> 
---    (ano : all-no-omega Ξ) -> 
     (θ : ValEnv Γ' Δ' {i} Θ Ξ' ) -> 
     (t : Term (A ∷ Γ') (M→M₀ m ∷ Δ') Θ Ξₜ B) ->
     Value Θ Ξ (A # m ~> B) {↑ i} 
@@ -69,7 +68,6 @@ data Value Θ where
   pair : 
     ∀ {Ξ Ξ₁ Ξ₂ A B i} -> 
     (spΞ : Ξ₁ +ₘ Ξ₂ ≡ Ξ) ->
---    (ano : all-no-omega Ξ) -> 
     Value Θ Ξ₁ A {i} ->
     Value Θ Ξ₂ B {i} ->
     Value Θ Ξ (A ⊗ B) {↑ i} 
@@ -89,6 +87,12 @@ data Value Θ where
     Value Θ Ξ (substTy F (μ F)) {i} -> 
     Value Θ Ξ (μ F) {↑ i} 
 
+  inj : 
+    ∀ {Ξ A B i}
+    -> (eq : ∅ ≡ Ξ)
+    -> (r : Residual (A ∷ []) (one ∷ ∅) (B ●) {i})
+    -> Value Θ Ξ (A ↔ B) {↑ i}
+
   red : 
     ∀ {Ξ A i} -> 
     Residual Θ Ξ (A ●) {i} -> 
@@ -101,21 +105,18 @@ data Residual Θ where
 
   letunit● : 
     ∀ {Ξ₀ Ξ A i} -> 
---    (ano : all-no-omega (Ξ₀ +ₘ Ξ)) -> 
     Residual Θ Ξ₀ (tunit ●) {i} ->
     Residual Θ Ξ  (A ●) {i} -> 
     Residual Θ (Ξ₀ +ₘ Ξ) (A ●) {↑ i} 
 
   pair● : 
     ∀ {Ξ₁ Ξ₂ A B i} -> 
---    (ano : all-no-omega (Ξ₁ +ₘ Ξ₂)) -> 
     Residual Θ Ξ₁ (A ●) {i} -> 
     Residual Θ Ξ₂ (B ●) {i} -> 
     Residual Θ (Ξ₁ +ₘ Ξ₂) ((A ⊗ B) ●) {↑ i} 
 
   letpair● : 
     ∀ {Ξ₀ Ξ A B C i} -> 
---    (ano : all-no-omega (Ξ₀ +ₘ Ξ)) -> 
     Residual Θ Ξ₀ ((A ⊗ B) ●) {i} -> 
     Residual (A ∷ B ∷ Θ) (one ∷ one ∷ Ξ) (C ●) {i} -> 
     Residual Θ (Ξ₀ +ₘ Ξ) (C ●) {↑ i}
@@ -132,10 +133,8 @@ data Residual Θ where
 
   case● : 
     ∀ {Ξ₀ Ξ Ξₑ Ξₜ Γ₁ Γ₂ Δ₁ Δ₂ A B C i} -> 
---    (ano : all-no-omega (Ξ₀ +ₘ Ξ)) -> 
     Residual Θ Ξ₀ ((A ⊕ B) ●) {i} ->
     (spΞ : Ξₑ +ₘ Ξₜ ≡ Ξ) -> 
---    (ano₁ : all-no-omega Ξ) -> 
     (θ₁ : ValEnv Γ₁ Δ₁ {i} Θ Ξₑ) ->
     (t₁ : Term Γ₁ Δ₁ (A ∷ Θ) (one ∷ Ξₜ) (C ●)) -> 
     (θ₂ : ValEnv Γ₂ Δ₂ {i} Θ Ξₑ) ->
@@ -149,7 +148,6 @@ data Residual Θ where
          Residual Θ Ξ (A ●) {↑ i}
 
   pin : ∀ {Ξ₁ Ξ₂ A B i} -> 
---        (ano : all-no-omega (Ξ₁ +ₘ Ξ₂)) -> 
         Residual Θ Ξ₁ (A ●) {i} ->          
         (v : Value    Θ Ξ₂ (A # omega ~> B ●) {i}) -> 
         Residual Θ (Ξ₁ +ₘ Ξ₂) ((A ⊗ B) ●) {↑ i} 
@@ -329,7 +327,11 @@ weakenΘ-value ext (inl v) = inl (weakenΘ-value ext v)
 weakenΘ-value ext (inr v) = inr (weakenΘ-value ext v)
 weakenΘ-value ext (roll v) = roll (weakenΘ-value ext v)
 weakenΘ-value ext (red x) = red (weakenΘ-residual ext x) 
-
+weakenΘ-value ext (inj refl r) = 
+  case* compatΘ-∅ ext of λ {
+    refl -> inj refl (weakenΘ-residual ext-id r)
+  }
+ 
 
 weakenΘ-mult ext (mult-zero refl) = 
   case* compatΘ-∅ ext  of λ {

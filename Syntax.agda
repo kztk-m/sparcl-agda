@@ -1,8 +1,8 @@
 {-# OPTIONS --without-K #-}
 
 open import Data.Nat 
-open import Data.List renaming (_++_ to _++L_ )
-open import Data.Vec  hiding (length) renaming (_++_ to _++V_ ) 
+open import Data.List using (List ; [] ; _∷_ ; length) renaming (_++_ to _++L_ )
+open import Data.Vec  using (Vec ; [] ; _∷_ ) renaming (_++_ to _++V_ ) 
 open import Data.Fin hiding (_+_ ; _≤_ )
 open import Data.Product
 open import Data.Maybe
@@ -40,6 +40,7 @@ data Ty : ℕ -> Set where
   _●     : ∀ {n} -> Ty n -> Ty n 
   μ_    : ∀ {n} -> Ty (suc n) -> Ty n 
   tvar   : ∀ {n} -> Fin n -> Ty n 
+  _↔_    : ∀ {n} -> Ty n -> Ty n -> Ty n 
 
 _⊸_ : ∀ {n} -> Ty n -> Ty n -> Ty n
 t ⊸ t' = t # one ~> t' 
@@ -83,6 +84,7 @@ module _ where
   weaken r (t ●) = weaken r t ●
   weaken r (μ t) = μ (weaken (s≤s r) t)
   weaken r (tvar x) = tvar (weakenVar r x)  
+  weaken r (t₁ ↔ t₂) = weaken r t₁ ↔ weaken r t₂ 
 
   substTyGen : ∀ {m n} -> Ty (m + suc n) -> Ty (m + n) -> Ty (m + n) 
   substTyGen (s₁ ⊕ s₂) t = substTyGen s₁ t ⊕ substTyGen s₂ t 
@@ -92,7 +94,8 @@ module _ where
   substTyGen (s # x ~> s₁) t = substTyGen s t # x ~> substTyGen s₁ t
   substTyGen (s ●) t = (substTyGen s t) ●
   substTyGen {m} (μ s) t = μ (substTyGen {m = suc m} s (weaken (n≤1+n _) t))
-  substTyGen (tvar x) t = substTyVar ≤-refl x t  
+  substTyGen (tvar x) t = substTyVar ≤-refl x t
+  substTyGen (s₁ ↔ s₂) t = substTyGen s₁ t ↔ substTyGen s₂ t 
 
   substTy : ∀ {n} -> Ty (suc n) -> Ty n -> Ty n 
   substTy = substTyGen {zero}
@@ -634,17 +637,34 @@ data Term : ∀ (Γ : TyEnv) -> MultEnv (length Γ) -> (Θ : TyEnv) -> MultEnv (
         Term Γ Δ₂ Θ Ξ₂ (A # omega ~> B ●)  -> 
         Term Γ (Δ₁ +ₘ Δ₂) Θ (Ξ₁ +ₘ Ξ₂) ((A ⊗ B) ●)
 
-  fwd : 
-    ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
-    Term Γ Δ₁ Θ Ξ₁ (A ● ⊸ B ●) -> 
-    Term Γ Δ₂ Θ Ξ₂ A -> 
-    Term Γ (omega ×ₘ Δ₁ +ₘ omega ×ₘ Δ₂) Θ (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂) B  
+  unlift : 
+    ∀ {Γ Δ Θ Ξ A B}
+    -> Term Γ Δ Θ Ξ (A ● ⊸ B ●) 
+    -> Term Γ (omega ×ₘ Δ) Θ (omega ×ₘ Ξ) (A ↔ B) 
 
-  bwd : 
-    ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
-    Term Γ Δ₁ Θ Ξ₁ (A ● ⊸ B ●) -> 
-    Term Γ Δ₂ Θ Ξ₂ B -> 
-    Term Γ (omega ×ₘ Δ₁ +ₘ omega ×ₘ Δ₂) Θ (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂) A
+  fapp : 
+    ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} 
+    -> Term Γ Δ₁ Θ Ξ₁ (A ↔ B) 
+    -> Term Γ Δ₂ Θ Ξ₂ A 
+    -> Term Γ (Δ₁ +ₘ omega ×ₘ Δ₂) Θ (Ξ₁ +ₘ omega ×ₘ Ξ₂) B 
+
+  bapp : 
+    ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} 
+    -> Term Γ Δ₁ Θ Ξ₁ (A ↔ B) 
+    -> Term Γ Δ₂ Θ Ξ₂ B 
+    -> Term Γ (Δ₁ +ₘ omega ×ₘ Δ₂) Θ (Ξ₁ +ₘ omega ×ₘ Ξ₂) A
+
+  -- fwd : 
+  --   ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
+  --   Term Γ Δ₁ Θ Ξ₁ (A ● ⊸ B ●) -> 
+  --   Term Γ Δ₂ Θ Ξ₂ A -> 
+  --   Term Γ (omega ×ₘ Δ₁ +ₘ omega ×ₘ Δ₂) Θ (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂) B  
+
+  -- bwd : 
+  --   ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
+  --   Term Γ Δ₁ Θ Ξ₁ (A ● ⊸ B ●) -> 
+  --   Term Γ Δ₂ Θ Ξ₂ B -> 
+  --   Term Γ (omega ×ₘ Δ₁ +ₘ omega ×ₘ Δ₂) Θ (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂) A
 
 data compatΘ : (Θ : TyEnv)  (Ξ : MultEnv (length Θ)) 
                 (Θ' : TyEnv) (Ξ' : MultEnv (length Θ')) -> Set where 
@@ -922,14 +942,32 @@ weakenΘ-term ext (var● x ad ok) with compatΘ-preserves-varOk● ext ok
 weakenΘ-term ext (pin t₁ t₂) 
   with compatΘ-split ext
 ... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl = pin (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂ t₂)
-weakenΘ-term ext (fwd t₁ t₂) 
-  with compatΘ-split ext
-... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl 
-  with compatΘ-×ₘ ext₁ | compatΘ-×ₘ ext₂ 
-... | Ξ₁'' , ext₁' , refl | Ξ₂'' , ext₂' , refl = fwd (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂' t₂) 
-weakenΘ-term ext (bwd t₁ t₂) 
-  with compatΘ-split ext
-... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl   
-  with compatΘ-×ₘ ext₁ | compatΘ-×ₘ ext₂ 
-... | Ξ₁'' , ext₁' , refl | Ξ₂'' , ext₂' , refl = bwd (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂' t₂)  
+weakenΘ-term ext (unlift t) =
+  CASE compatΘ-×ₘ ext OF λ {
+    (_ , ext' , refl) -> unlift (weakenΘ-term ext' t)
+  }
+weakenΘ-term ext (fapp t₁ t₂) =
+  CASE compatΘ-split ext OF λ {
+    (_ , _ , ext₁ , ext₂ , refl) -> CASE compatΘ-×ₘ ext₂ OF λ {
+      (_ , ext₂' , refl) -> fapp (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂' t₂)
+    }
+  }
+weakenΘ-term ext (bapp t₁ t₂) =
+  CASE compatΘ-split ext OF λ {
+    (_ , _ , ext₁ , ext₂ , refl) -> CASE compatΘ-×ₘ ext₂ OF λ {
+      (_ , ext₂' , refl) -> bapp (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂' t₂)
+    }
+  }
+  
+
+-- weakenΘ-term ext (fwd t₁ t₂) 
+--   with compatΘ-split ext
+-- ... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl 
+--   with compatΘ-×ₘ ext₁ | compatΘ-×ₘ ext₂ 
+-- ... | Ξ₁'' , ext₁' , refl | Ξ₂'' , ext₂' , refl = fwd (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂' t₂) 
+-- weakenΘ-term ext (bwd t₁ t₂) 
+--   with compatΘ-split ext
+-- ... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl   
+--   with compatΘ-×ₘ ext₁ | compatΘ-×ₘ ext₂ 
+-- ... | Ξ₁'' , ext₁' , refl | Ξ₂'' , ext₂' , refl = bwd (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂' t₂)  
   

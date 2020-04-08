@@ -96,10 +96,6 @@ module Interpreter where
   open import PInj
   open _⊢_⇔_
 
-  -- import Codata.Delay.Categorical
-  -- import Category.Monad 
-  -- open Category.Monad.RawMonad (Codata.Delay.Categorical.Sequential.monad {ℓ = 0ℓ})
-
   data RValEnv : (Θ : TyEnv) (Ξ : MultEnv (length Θ)) -> Set where
     []   : RValEnv [] [] 
     skip : ∀ {Θ Ξ A} -> RValEnv Θ Ξ -> RValEnv (A ∷ Θ) (zero ∷ Ξ)
@@ -147,6 +143,12 @@ module Interpreter where
 
   var●₀ : ∀ {A Θ} -> Residual (A ∷ Θ) (one ∷ ∅) (A ●) 
   var●₀ = var● vz (here all-zero-∅) 
+
+  bindR : ∀ {ℓ : Level} {i Θ Ξ A} {r : Set ℓ} -> Delay (Value Θ Ξ (A ●)) i -> (Residual Θ Ξ (A ●) -> Delay r i) -> Delay r i 
+  bindR x f = bind x λ { (red r) -> f r } 
+
+  _>>=_ : ∀ {a b : Level} {A : Set a} {B : A -> Set b} -> ∀ (x : A) -> (∀ x -> B x) -> B x 
+  x >>= f = f x 
 
   apply : 
     ∀ {Θ Ξ₁ Ξ₂ A m B} i -> 
@@ -330,11 +332,8 @@ module Interpreter where
       with separateEnv {Γ} Δ₁ (m ×ₘ Δ₂) θ
   ... | tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ with eval i (proj₁ lemma) θ₁ t₁ | proj₂ lemma | weakenΔ-valEnv Γ θ₂ 
     where 
-      open import Algebra.Solver.CommutativeMonoid (+ₘ-commutativeMonoid (length Θ)) 
-                renaming (_⊕_ to _⊞_)
-
       lemma' : Ξₑ₁ +ₘ Ξₑ₂ +ₘ (Ξ₁ +ₘ m ×ₘ Ξ₂) ≡ (Ξₑ₁ +ₘ Ξ₁) +ₘ (Ξₑ₂ +ₘ m ×ₘ Ξ₂)
-      lemma' = solve 4 (λ x y z w -> (x ⊞ y) ⊞ (z ⊞ w) ⊜ (x ⊞ z) ⊞ (y ⊞ w)) refl Ξₑ₁ Ξₑ₂ Ξ₁ _ 
+      lemma' = +ₘ-transpose Ξₑ₁ Ξₑ₂ Ξ₁ (m ×ₘ Ξ₂) 
 
       lemma : all-no-omega (Ξₑ₁ +ₘ Ξ₁) × all-no-omega (Ξₑ₂ +ₘ m ×ₘ Ξ₂)
       lemma = all-no-omega-dist (Ξₑ₁ +ₘ Ξ₁) _ (subst all-no-omega lemma' ano)  
@@ -369,6 +368,7 @@ module Interpreter where
       
   eval {Γ = Γ} _ ano θ (unit ad) with discardable-has-no-resources {Γ} θ ad
   ... | refl = now (substV (sym (∅-lid _)) (unit refl))
+
   eval {Θ} {Ξₑ} {Γ} i ano θ (letunit {Δ₀ = Δ₀} {Δ} {Ξ₀ = Ξ₀} {Ξ} m t₀ t) 
     with separateEnv {Γ} (m ×ₘ Δ₀) Δ θ 
   ... | tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ 
@@ -507,32 +507,25 @@ module Interpreter where
   eval {Γ = Γ} i ano θ (unit● ad) with discardable-has-no-resources {Γ} θ ad
   ... | refl = now (red (substR (sym (∅-lid _)) unit●))
 
-  eval {Θ} {Ξₑ} {Γ} i ano θ (letunit● {Δ₀ = Δ₀} {Δ} {Ξ₀ = Ξ₀} {Ξ} t₀ t) 
-    with separateEnv {Γ} Δ₀ Δ θ
-  ... | tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ 
-    with subst all-no-omega (+ₘ-transpose Ξₑ₁ Ξₑ₂ Ξ₀ _) ano 
-  ... | ano' 
-    with all-no-omega-dist (Ξₑ₁ +ₘ Ξ₀) _ ano' 
-  ... | ano-e10 , ano-e2- 
-    with eval i ano-e10 θ₁ t₀ | eval i ano-e2- θ₂ t 
-  ... | T₀ | T = 
-      bind T₀ λ { (red E₀) -> 
-      bind T  λ { (red E) -> 
-         now (red (substR (+ₘ-transpose _ _ _ _) (letunit● E₀ E))) 
-      }} 
+  eval {Θ} {Ξₑ} {Γ} i ano θ (letunit● {Δ₀ = Δ₀} {Δ} {Ξ₀ = Ξ₀} {Ξ} t₀ t) = do 
+    tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ <- separateEnv {Γ} Δ₀ Δ θ
+    let lemma : Ξₑ₁ +ₘ Ξₑ₂ +ₘ (Ξ₀ +ₘ Ξ) ≡ Ξₑ₁ +ₘ Ξ₀ +ₘ (Ξₑ₂ +ₘ Ξ)
+        lemma = +ₘ-transpose _ _ _ _ 
+    let ano' = subst all-no-omega lemma ano 
+    ano-e10 , ano-e2- <- all-no-omega-dist (Ξₑ₁ +ₘ Ξ₀) _ ano' 
+    bindR (eval i ano-e10 θ₁ t₀) λ E₀ -> 
+     bindR (eval i ano-e2- θ₂ t) λ E -> 
+       now (red (substR (sym lemma) (letunit● E₀ E)))
 
-  eval {Θ} {Ξₑ} {Γ} i ano θ (pair● {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} t₁ t₂) 
-    with separateEnv {Γ} Δ₁ Δ₂ θ
-  ... | tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ 
-    with subst all-no-omega (+ₘ-transpose Ξₑ₁ Ξₑ₂ Ξ₁ _) ano
-  ... | ano' 
-    with all-no-omega-dist (Ξₑ₁ +ₘ Ξ₁) _ ano' 
-  ... | ano-e11 , ano-e22 with eval i ano-e11 θ₁ t₁ | eval i ano-e22 θ₂ t₂
-  ... | T₁ | T₂ = 
-    bind T₁ λ { (red E₁) -> 
-    bind T₂ λ { (red E₂) -> 
-      now (red (substR (+ₘ-transpose _ _ _ _) (pair● E₁ E₂)))
-    }}
+  eval {Θ} {Ξₑ} {Γ} i ano θ (pair● {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} t₁ t₂) = do 
+    tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ <- separateEnv {Γ} Δ₁ Δ₂ θ
+    let lemma : Ξₑ₁ +ₘ Ξₑ₂ +ₘ (Ξ₁ +ₘ Ξ₂) ≡ Ξₑ₁ +ₘ Ξ₁ +ₘ (Ξₑ₂ +ₘ Ξ₂)
+        lemma = +ₘ-transpose _ _ _ _ 
+    let ano' = subst all-no-omega lemma ano
+    ano-e11 , ano-e22 <- all-no-omega-dist (Ξₑ₁ +ₘ Ξ₁) _ ano' 
+    bindR (eval i ano-e11 θ₁ t₁) λ E₁ -> 
+      bindR (eval i ano-e22 θ₂ t₂) λ E₂ -> 
+        now (red (substR (sym lemma) (pair● E₁ E₂)))  
   
   eval {Θ} {Ξₑ} {Γ} i ano θ (letpair● {Δ₀ = Δ₀} {Δ} {Ξ₀ = Ξ₀} {Ξ} t₀ t) 
     with separateEnv {Γ} Δ₀ Δ θ 
@@ -549,14 +542,11 @@ module Interpreter where
      }}
 
   eval i ano θ (inl● t) = 
-    bind (eval i ano θ t) λ { (red E) -> 
-      now (red (inl● E))
-    }
+    bindR (eval i ano θ t) λ E -> now (red (inl● E))
+    
   
   eval i ano θ (inr● t) = 
-    bind (eval i ano θ t) λ { (red E) -> 
-      now (red (inr● E))
-    }
+    bindR (eval i ano θ t) λ E -> now (red (inr● E))    
   
   eval {Θ} {Ξₑ} {Γ} i ano θ (case● {Δ₀ = Δ₀} {Δ} {Δ'} {Ξ₀ = Ξ₀} {Ξ} {Ξ'} t t₁ t₂ t₃) 
     with separateEnv {Γ} (Δ₀ +ₘ Δ) _ θ 
@@ -612,87 +602,151 @@ module Interpreter where
     with discardable-has-no-resources {Γ} θ ad
   ... | refl = now (red (substR (sym (∅-lid _)) (var● x ok)))
 
-  eval {Θ} {Ξₑ} {Γ} i ano θ (pin {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} t₁ t₂) 
-    with separateEnv {Γ} Δ₁ Δ₂ θ 
-  ... | tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ 
-    with subst all-no-omega (+ₘ-transpose Ξₑ₁ Ξₑ₂ Ξ₁ _) ano
-  ... | ano' 
-    with all-no-omega-dist (Ξₑ₁ +ₘ Ξ₁) _ ano' 
-  ... | ano-e11 , ano-e22 with eval i ano-e11 θ₁ t₁ | eval i ano-e22 θ₂ t₂
-  ... | T₁ | T₂ = 
-      bind T₁ λ { (red r) -> 
-      bind T₂ λ { v -> 
+  eval {Θ} {Ξₑ} {Γ} i ano θ (pin {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} t₁ t₂) = do 
+    tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂  <- separateEnv {Γ} Δ₁ Δ₂ θ 
+    let ano' = subst all-no-omega (+ₘ-transpose Ξₑ₁ Ξₑ₂ Ξ₁ _) ano
+    ano-e11 , ano-e22 <- all-no-omega-dist (Ξₑ₁ +ₘ Ξ₁) _ ano' 
+    bindR (eval i ano-e11 θ₁ t₁) λ r -> 
+      bind (eval i ano-e22 θ₂ t₂) λ v -> 
         now (red (substR (+ₘ-transpose _ _ _ _) (pin r v)))
-      }}
+     
+    
   
-  eval {Θ} {Ξₑ} {Γ} i ano θ (fwd {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} {A = A} {B} t₁ t₂) 
-    with separateEnv {Γ} (omega ×ₘ Δ₁) (omega ×ₘ Δ₂) θ
-  ... | tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ 
-    with subst all-no-omega (+ₘ-transpose Ξₑ₁ Ξₑ₂ (omega ×ₘ Ξ₁) (omega ×ₘ Ξ₂)) ano
-  ... | ano' 
-    with weakenΔ-valEnv Γ θ₁ | weakenΔ-valEnv Γ θ₂ 
-  ... | Ξₑ₁' , θ₁' , refl | Ξₑ₂' , θ₂' , refl 
-    with all-no-omega-dist (omega ×ₘ Ξₑ₁' +ₘ omega ×ₘ Ξ₁) _ ano'
-  ... | ano₁ , ano₂ 
-    with all-no-omega-dist (omega ×ₘ Ξₑ₁') _ ano₁ | all-no-omega-dist (omega ×ₘ Ξₑ₂') _ ano₂ 
-  ... | ano-me1' , ano-m1 | ano-me2' , ano-m2 
-    with all-no-omega-omega×ₘ _ ano-me1' | all-no-omega-omega×ₘ _ ano-m1 | all-no-omega-omega×ₘ _ ano-me2' | all-no-omega-omega×ₘ _ ano-m2 
-  ... | refl | refl | refl | refl 
-    with eval i (subst all-no-omega (sym (∅-lid _)) all-no-omega-∅) θ₁' t₁ | eval i (subst all-no-omega (sym (∅-lid _)) all-no-omega-∅) θ₂' t₂ 
-  ... | T₁ | T₂ = 
-    bind T₁ λ f -> 
-    bind (subst (λ x -> Delay (Value Θ x A) i) (∅-lid ∅) T₂) λ v -> 
-      bind (apply i (one ∷ subst all-no-omega lemma₁ all-no-omega-∅) (weakenΘ-value (compat-ext-here ext-id) f) (red var●₀)) λ { (red bx) -> 
-        later λ { .force {k} -> 
-          bind (forward (evalR k (one ∷ all-no-omega-∅) (substR (cong (one ∷_) (sym lemma₁)) bx)) (weakenΘ-value smashΘ v ∷ emptyRValEnv)) λ { v' -> 
-            now (substV lemma₂ (weakenΘ-value extendΘ v'))
-          }
-        }
-    }
+  eval {Γ = Γ} i ano θ (unlift e) = do
+    Ξ' , θ' , refl <- weakenΔ-valEnv Γ θ
+    ano₁ , ano₂  <- all-no-omega-dist _ _ ano 
+    refl <- all-no-omega-omega×ₘ _ ano₁  
+    refl <- all-no-omega-omega×ₘ _ ano₂ 
+    bind (eval i (subst all-no-omega (sym (∅-lid ∅)) all-no-omega-∅ ) θ' e) λ v -> 
+      bindR (apply i (one ∷ subst all-no-omega (sym lemma₁) all-no-omega-∅) (weakenΘ-value (compat-ext-here ext-id) v) (red var●₀)) λ r -> 
+        now (substV (sym lemma₂) (inj refl (weakenΘ-residual (compat-skip smashΘ) (substR (cong (one ∷_) lemma₁) r) )))
     where
       open import Data.Vec.Properties using (map-id) 
-      lemma₁ : ∀ {n} -> ∅ {n} ≡ ∅ +ₘ ∅ +ₘ Data.Vec.map (λ y -> y) ∅ 
-      lemma₁ {_} = sym (trans (cong₂ (_+ₘ_) (∅-lid ∅) (map-id ∅)) (∅-lid ∅))  
+      lemma₁ : ∀ {n} -> ∅ +ₘ ∅ +ₘ Data.Vec.map (λ y -> y) ∅ ≡ ∅ {n}
+      lemma₁ {n} rewrite map-id (∅ {n}) | ∅-rid {n} ∅ = ∅-lid ∅ 
+
+      lemma₂ : ∀ {n} -> omega ×ₘ ∅ +ₘ omega ×ₘ ∅ ≡ ∅ {n} 
+      lemma₂ {n} rewrite ×ₘ∅ {n} omega | ∅-lid {n} ∅ = refl 
+    
+  eval {Γ = Γ} i ano θ (fapp e₁ e₂) = do 
+    anoₑ , ano'  <- all-no-omega-dist _ _ ano 
+    ano₁ , ano'' <- all-no-omega-dist _ _ ano'
+    refl <- all-no-omega-omega×ₘ _ ano''     
+    tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂  <- separateEnv {Γ} _ _ θ 
+    Ξₑ₂' , θ₂' , refl <- weakenΔ-valEnv Γ θ₂
+    ano₁' , _ <- all-no-omega-dist _ _ (subst all-no-omega lemma' ano)
+    bind (eval i ano₁' θ₁ e₁) λ { 
+      (inj spΞ r) → do 
+        refl , refl <- ∅+ₘ∅-inv _ _ (sym spΞ)
+        refl <- all-no-omega-omega×ₘ _ (subst all-no-omega (∅-lid _) anoₑ)         
+        bind (eval i (subst all-no-omega (sym (∅-lid ∅)) all-no-omega-∅) θ₂' e₂) λ v -> later λ { .force {j} -> 
+           bind (forward (evalR j (one ∷ all-no-omega-∅) r) (weakenΘ-value smashΘ (substV (∅-lid ∅) v) ∷ [])) λ v' -> 
+            now (substV (sym lemma) (weakenΘ-value extendΘ v'))
+         } 
+     } 
+    where
+      lemma' : ∀ {n} {Ξₑ₁ Ξ₁ X Y : MultEnv n} -> Ξₑ₁ +ₘ X +ₘ (Ξ₁ +ₘ Y) ≡ Ξₑ₁ +ₘ Ξ₁ +ₘ (X +ₘ Y)
+      lemma' {n} {A} {B} {C} {D} = +ₘ-transpose A C B D 
+
+      lemma : ∀ {n} -> ∅ +ₘ omega ×ₘ ∅ +ₘ (∅ +ₘ omega ×ₘ ∅) ≡ ∅ {n} 
+      lemma {n} rewrite ×ₘ∅ {n} omega | ∅-lid {n} ∅ = ∅-lid ∅
+
+  eval {Γ = Γ} i ano θ (bapp e₁ e₂) = do 
+    anoₑ , ano'  <- all-no-omega-dist _ _ ano 
+    ano₁ , ano'' <- all-no-omega-dist _ _ ano'
+    refl <- all-no-omega-omega×ₘ _ ano''     
+    tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂  <- separateEnv {Γ} _ _ θ 
+    Ξₑ₂' , θ₂' , refl <- weakenΔ-valEnv Γ θ₂
+    ano₁' , _ <- all-no-omega-dist _ _ (subst all-no-omega lemma' ano)
+    bind (eval i ano₁' θ₁ e₁) λ { 
+      (inj spΞ r) → do 
+        refl , refl <- ∅+ₘ∅-inv _ _ (sym spΞ)
+        refl <- all-no-omega-omega×ₘ _ (subst all-no-omega (∅-lid _) anoₑ)         
+        bind (eval i (subst all-no-omega (sym (∅-lid ∅)) all-no-omega-∅) θ₂' e₂) λ v -> later λ { .force {j} -> 
+          bind (backward (evalR j (one ∷ all-no-omega-∅) r) (weakenΘ-value smashΘ (substV (∅-lid ∅) v))) λ { (v' ∷ []) -> 
+             now (substV (sym lemma) (weakenΘ-value extendΘ v'))
+           }
+           -- bind (forward (evalR j (one ∷ all-no-omega-∅) r) (weakenΘ-value smashΘ (substV (∅-lid ∅) v) ∷ [])) λ v' -> 
+           --  now (substV (sym lemma) (weakenΘ-value extendΘ v'))
+         } 
+     } 
+    where
+      lemma' : ∀ {n} {Ξₑ₁ Ξ₁ X Y : MultEnv n} -> Ξₑ₁ +ₘ X +ₘ (Ξ₁ +ₘ Y) ≡ Ξₑ₁ +ₘ Ξ₁ +ₘ (X +ₘ Y)
+      lemma' {n} {A} {B} {C} {D} = +ₘ-transpose A C B D 
+
+      lemma : ∀ {n} -> ∅ +ₘ omega ×ₘ ∅ +ₘ (∅ +ₘ omega ×ₘ ∅) ≡ ∅ {n} 
+      lemma {n} rewrite ×ₘ∅ {n} omega | ∅-lid {n} ∅ = ∅-lid ∅
+      
+  
+  -- eval {Θ} {Ξₑ} {Γ} i ano θ (fwd {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} {A = A} {B} t₁ t₂) 
+  --   with separateEnv {Γ} (omega ×ₘ Δ₁) (omega ×ₘ Δ₂) θ
+  -- ... | tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ 
+  --   with subst all-no-omega (+ₘ-transpose Ξₑ₁ Ξₑ₂ (omega ×ₘ Ξ₁) (omega ×ₘ Ξ₂)) ano
+  -- ... | ano' 
+  --   with weakenΔ-valEnv Γ θ₁ | weakenΔ-valEnv Γ θ₂ 
+  -- ... | Ξₑ₁' , θ₁' , refl | Ξₑ₂' , θ₂' , refl 
+  --   with all-no-omega-dist (omega ×ₘ Ξₑ₁' +ₘ omega ×ₘ Ξ₁) _ ano'
+  -- ... | ano₁ , ano₂ 
+  --   with all-no-omega-dist (omega ×ₘ Ξₑ₁') _ ano₁ | all-no-omega-dist (omega ×ₘ Ξₑ₂') _ ano₂ 
+  -- ... | ano-me1' , ano-m1 | ano-me2' , ano-m2 
+  --   with all-no-omega-omega×ₘ _ ano-me1' | all-no-omega-omega×ₘ _ ano-m1 | all-no-omega-omega×ₘ _ ano-me2' | all-no-omega-omega×ₘ _ ano-m2 
+  -- ... | refl | refl | refl | refl 
+  --   with eval i (subst all-no-omega (sym (∅-lid _)) all-no-omega-∅) θ₁' t₁ | eval i (subst all-no-omega (sym (∅-lid _)) all-no-omega-∅) θ₂' t₂ 
+  -- ... | T₁ | T₂ = 
+  --   bind T₁ λ f -> 
+  --   bind (subst (λ x -> Delay (Value Θ x A) i) (∅-lid ∅) T₂) λ v -> 
+  --     bind (apply i (one ∷ subst all-no-omega lemma₁ all-no-omega-∅) (weakenΘ-value (compat-ext-here ext-id) f) (red var●₀)) λ { (red bx) -> 
+  --       later λ { .force {k} -> 
+  --         bind (forward (evalR k (one ∷ all-no-omega-∅) (substR (cong (one ∷_) (sym lemma₁)) bx)) (weakenΘ-value smashΘ v ∷ emptyRValEnv)) λ { v' -> 
+  --           now (substV lemma₂ (weakenΘ-value extendΘ v'))
+  --         }
+  --       }
+  --   }
+  --   where
+  --     open import Data.Vec.Properties using (map-id) 
+  --     lemma₁ : ∀ {n} -> ∅ {n} ≡ ∅ +ₘ ∅ +ₘ Data.Vec.map (λ y -> y) ∅ 
+  --     lemma₁ {_} = sym (trans (cong₂ (_+ₘ_) (∅-lid ∅) (map-id ∅)) (∅-lid ∅))  
    
-      lemma₂ : ∀ {n} -> (∅ {n} ≡ (omega ×ₘ ∅ +ₘ omega ×ₘ ∅) +ₘ (omega ×ₘ ∅ +ₘ omega ×ₘ ∅))
-      lemma₂ {_} = sym (trans (cong₂ (_+ₘ_) (cong₂ (_+ₘ_) (×ₘ∅ omega) (×ₘ∅ omega)) (cong₂ (_+ₘ_) (×ₘ∅ omega) (×ₘ∅ omega)))
-                                     (trans (cong (_+ₘ (∅ +ₘ ∅)) (∅-lid ∅)) 
-                                           (trans (∅-lid _) (∅-lid ∅))))
+  --     lemma₂ : ∀ {n} -> (∅ {n} ≡ (omega ×ₘ ∅ +ₘ omega ×ₘ ∅) +ₘ (omega ×ₘ ∅ +ₘ omega ×ₘ ∅))
+  --     lemma₂ {_} = sym (trans (cong₂ (_+ₘ_) (cong₂ (_+ₘ_) (×ₘ∅ omega) (×ₘ∅ omega)) (cong₂ (_+ₘ_) (×ₘ∅ omega) (×ₘ∅ omega)))
+  --                                    (trans (cong (_+ₘ (∅ +ₘ ∅)) (∅-lid ∅)) 
+  --                                          (trans (∅-lid _) (∅-lid ∅))))
       
 
   
-  eval {Θ} {Ξₑ} {Γ} i ano θ (bwd {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} {A = A} {B} t₁ t₂)
-      with separateEnv {Γ} (omega ×ₘ Δ₁) (omega ×ₘ Δ₂) θ
-  ... | tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ 
-    with subst all-no-omega (+ₘ-transpose Ξₑ₁ Ξₑ₂ (omega ×ₘ Ξ₁) (omega ×ₘ Ξ₂)) ano
-  ... | ano' 
-    with weakenΔ-valEnv Γ θ₁ | weakenΔ-valEnv Γ θ₂ 
-  ... | Ξₑ₁' , θ₁' , refl | Ξₑ₂' , θ₂' , refl 
-    with all-no-omega-dist (omega ×ₘ Ξₑ₁' +ₘ omega ×ₘ Ξ₁) _ ano'
-  ... | ano₁ , ano₂ 
-    with all-no-omega-dist (omega ×ₘ Ξₑ₁') _ ano₁ | all-no-omega-dist (omega ×ₘ Ξₑ₂') _ ano₂ 
-  ... | ano-me1' , ano-m1 | ano-me2' , ano-m2 
-    with all-no-omega-omega×ₘ _ ano-me1' | all-no-omega-omega×ₘ _ ano-m1 | all-no-omega-omega×ₘ _ ano-me2' | all-no-omega-omega×ₘ _ ano-m2 
-  ... | refl | refl | refl | refl 
-    with eval i (subst all-no-omega (sym (∅-lid _)) all-no-omega-∅) θ₁' t₁ | eval i (subst all-no-omega (sym (∅-lid _)) all-no-omega-∅) θ₂' t₂ 
-  ... | T₁ | T₂ = 
-    bind T₁ λ f -> 
-    bind (subst (λ x -> Delay (Value Θ x B) i) (∅-lid ∅) T₂) λ v' -> 
-      bind (apply i (one ∷ subst all-no-omega lemma₁ all-no-omega-∅) (weakenΘ-value (compat-ext-here ext-id) f) (red var●₀)) λ { (red bx) -> 
-        later λ { .force {k} -> 
-          bind (backward (evalR k (one ∷ all-no-omega-∅) (substR (cong (one ∷_) (sym lemma₁)) bx)) (weakenΘ-value smashΘ v')) λ { (v ∷ _) -> 
-          now (substV lemma₂ (weakenΘ-value extendΘ v)) 
-        }
-        } 
-      }
-    where
-      open import Data.Vec.Properties using (map-id) 
-      lemma₁ : ∀ {n} -> ∅ {n} ≡ ∅ +ₘ ∅ +ₘ Data.Vec.map (λ y -> y) ∅ 
-      lemma₁ {_} = sym (trans (cong₂ (_+ₘ_) (∅-lid ∅) (map-id ∅)) (∅-lid ∅))  
+  -- eval {Θ} {Ξₑ} {Γ} i ano θ (bwd {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} {A = A} {B} t₁ t₂)
+  --     with separateEnv {Γ} (omega ×ₘ Δ₁) (omega ×ₘ Δ₂) θ
+  -- ... | tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ 
+  --   with subst all-no-omega (+ₘ-transpose Ξₑ₁ Ξₑ₂ (omega ×ₘ Ξ₁) (omega ×ₘ Ξ₂)) ano
+  -- ... | ano' 
+  --   with weakenΔ-valEnv Γ θ₁ | weakenΔ-valEnv Γ θ₂ 
+  -- ... | Ξₑ₁' , θ₁' , refl | Ξₑ₂' , θ₂' , refl 
+  --   with all-no-omega-dist (omega ×ₘ Ξₑ₁' +ₘ omega ×ₘ Ξ₁) _ ano'
+  -- ... | ano₁ , ano₂ 
+  --   with all-no-omega-dist (omega ×ₘ Ξₑ₁') _ ano₁ | all-no-omega-dist (omega ×ₘ Ξₑ₂') _ ano₂ 
+  -- ... | ano-me1' , ano-m1 | ano-me2' , ano-m2 
+  --   with all-no-omega-omega×ₘ _ ano-me1' | all-no-omega-omega×ₘ _ ano-m1 | all-no-omega-omega×ₘ _ ano-me2' | all-no-omega-omega×ₘ _ ano-m2 
+  -- ... | refl | refl | refl | refl 
+  --   with eval i (subst all-no-omega (sym (∅-lid _)) all-no-omega-∅) θ₁' t₁ | eval i (subst all-no-omega (sym (∅-lid _)) all-no-omega-∅) θ₂' t₂ 
+  -- ... | T₁ | T₂ = 
+  --   bind T₁ λ f -> 
+  --   bind (subst (λ x -> Delay (Value Θ x B) i) (∅-lid ∅) T₂) λ v' -> 
+  --     bind (apply i (one ∷ subst all-no-omega lemma₁ all-no-omega-∅) (weakenΘ-value (compat-ext-here ext-id) f) (red var●₀)) λ { (red bx) -> 
+  --       later λ { .force {k} -> 
+  --         bind (backward (evalR k (one ∷ all-no-omega-∅) (substR (cong (one ∷_) (sym lemma₁)) bx)) (weakenΘ-value smashΘ v')) λ { (v ∷ _) -> 
+  --         now (substV lemma₂ (weakenΘ-value extendΘ v)) 
+  --       }
+  --       } 
+  --     }
+  --   where
+  --     open import Data.Vec.Properties using (map-id) 
+  --     lemma₁ : ∀ {n} -> ∅ {n} ≡ ∅ +ₘ ∅ +ₘ Data.Vec.map (λ y -> y) ∅ 
+  --     lemma₁ {_} = sym (trans (cong₂ (_+ₘ_) (∅-lid ∅) (map-id ∅)) (∅-lid ∅))  
    
-      lemma₂ : ∀ {n} -> (∅ {n} ≡ (omega ×ₘ ∅ +ₘ omega ×ₘ ∅) +ₘ (omega ×ₘ ∅ +ₘ omega ×ₘ ∅))
-      lemma₂ {_} = sym (trans (cong₂ (_+ₘ_) (cong₂ (_+ₘ_) (×ₘ∅ omega) (×ₘ∅ omega)) (cong₂ (_+ₘ_) (×ₘ∅ omega) (×ₘ∅ omega)))
-                                     (trans (cong (_+ₘ (∅ +ₘ ∅)) (∅-lid ∅)) 
-                                           (trans (∅-lid _) (∅-lid ∅))))
+  --     lemma₂ : ∀ {n} -> (∅ {n} ≡ (omega ×ₘ ∅ +ₘ omega ×ₘ ∅) +ₘ (omega ×ₘ ∅ +ₘ omega ×ₘ ∅))
+  --     lemma₂ {_} = sym (trans (cong₂ (_+ₘ_) (cong₂ (_+ₘ_) (×ₘ∅ omega) (×ₘ∅ omega)) (cong₂ (_+ₘ_) (×ₘ∅ omega) (×ₘ∅ omega)))
+  --                                    (trans (cong (_+ₘ (∅ +ₘ ∅)) (∅-lid ∅)) 
+  --                                          (trans (∅-lid _) (∅-lid ∅))))
 
 
+open Interpreter public 
