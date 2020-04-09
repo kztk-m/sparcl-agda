@@ -28,12 +28,51 @@ open import Function using () renaming (case_of_ to CASE_OF_)
 
 open import Value 
 
+open import Size 
+open import Codata.Thunk
+
+
 module Interpreter where 
   open import Codata.Delay renaming (length to dlength ; map to dmap )
-  open import Codata.Thunk
 
   open import PInj
   open _⊢_⇔_
+
+  -- Frozen Delay monad. We cannot restrict levels in general, while for this purpose using Set is enough. 
+  data DELAY : (A : Set) -> (i : Size) -> Set₁ where 
+    Now   : ∀ {A i} -> A -> DELAY A i 
+    Later : ∀ {A i} -> Thunk (DELAY A) i -> DELAY A i 
+    Bind  : ∀ {A B i} 
+            -> (m : DELAY A i) -> (f : A -> DELAY B i) -> DELAY B i 
+
+  Never : ∀ {A i} -> DELAY A i 
+  Never = Later λ where .force -> Never 
+
+  Dmap : ∀ {A B i} -> (A -> B) -> DELAY A i -> DELAY B i 
+  Dmap f d = Bind d (λ x -> Now (f x)) 
+  
+  runD : ∀ {A : Set} {i : Size} -> DELAY A i -> Delay A i 
+  runD (Now x) = now x
+  runD (Later x) = later λ where .force -> runD (force x)
+  runD (Bind d f) = bind (runD d) (λ x -> runD (f x))
+
+  record _⊢F_⇔_ (i : Size) (A B : Set) : Set₁ where 
+    field 
+      Forward  : A -> DELAY B i 
+      Backward : B -> DELAY A i 
+
+  open _⊢F_⇔_ 
+
+  forwardF  : ∀ {A B i} -> i ⊢F A ⇔ B -> A -> Delay B i 
+  forwardF h a = runD (Forward h a) 
+
+  backwardF : ∀ {A B i} -> i ⊢F A ⇔ B -> B -> Delay A i 
+  backwardF h b = runD (Backward h b) 
+
+  runD⇔ : ∀ {A B i} -> i ⊢F A ⇔ B -> i ⊢ A ⇔ B
+  forward  (runD⇔ f) = forwardF f 
+  backward (runD⇔ f) = backwardF f 
+
 
   data RValEnv : (Θ : TyEnv) (Ξ : MultEnv (length Θ)) -> Set where
     []   : RValEnv [] [] 
@@ -86,6 +125,10 @@ module Interpreter where
   bindR : ∀ {ℓ : Level} {i Θ Ξ A} {r : Set ℓ} -> Delay (Value Θ Ξ (A ●)) i -> (Residual Θ Ξ (A ●) -> Delay r i) -> Delay r i 
   bindR x f = bind x λ { (red r) -> f r } 
 
+  BindR : ∀ {i Θ Ξ A} {r : Set} -> DELAY (Value Θ Ξ (A ●)) i -> (Residual Θ Ξ (A ●) -> DELAY r i) -> DELAY r i 
+  BindR x f = Bind x λ { (red r) -> f r } 
+  
+
   -- For the do trick for the pattern matching 
   -- See https://github.com/agda/agda/issues/2298
   _>>=_ : ∀ {a b : Level} {A : Set a} {B : A -> Set b} -> ∀ (x : A) -> (∀ x -> B x) -> B x 
@@ -94,20 +137,20 @@ module Interpreter where
   apply : 
     ∀ {Θ Ξ₁ Ξ₂ A m B} i -> 
     all-no-omega (Ξ₁ +ₘ m ×ₘ Ξ₂) -> 
-    Value Θ Ξ₁ (A # m ~> B) -> Value Θ Ξ₂ A -> Delay (Value Θ (Ξ₁ +ₘ m ×ₘ Ξ₂) B) i 
+    Value Θ Ξ₁ (A # m ~> B) -> Value Θ Ξ₂ A -> DELAY (Value Θ (Ξ₁ +ₘ m ×ₘ Ξ₂) B) i 
 
   evalR :
     ∀ {Θ Ξ A} i -> 
-    all-no-omega Ξ -> Residual Θ Ξ (A ●) -> i ⊢ (RValEnv Θ Ξ) ⇔ Value [] ∅ A 
+    all-no-omega Ξ -> Residual Θ Ξ (A ●) -> i ⊢F (RValEnv Θ Ξ) ⇔ Value [] ∅ A 
 
   eval : 
     ∀ {Θ Ξₑ Γ Δ Ξ A} i -> 
-    all-no-omega (Ξₑ +ₘ Ξ) -> ValEnv Γ Δ Θ Ξₑ -> Term Γ Δ Θ Ξ A -> Delay (Value Θ (Ξₑ +ₘ Ξ) A) i 
+    all-no-omega (Ξₑ +ₘ Ξ) -> ValEnv Γ Δ Θ Ξₑ -> Term Γ Δ Θ Ξ A -> DELAY (Value Θ (Ξₑ +ₘ Ξ) A) i 
 
   apply {Θ} {Ξ₁} {Ξ₂} i ano (clo {Ξ' = Ξ'} {Ξₜ = Ξₜ} m refl θ t) v with all-no-omega-dist _ _ ano
-  ... | ano-'t , ano-m2 = later λ { .force {j} -> 
+  ... | ano-'t , ano-m2 = Later λ { .force {j} -> 
         let T = eval j (subst all-no-omega lemma ano) (tup _ _ refl (value-to-multM ano-m2 v) θ) t
-        in subst (λ x -> Delay (Value Θ x _) j) (sym lemma) T  
+        in subst (λ x -> DELAY (Value Θ x _) j) (sym lemma) T  
       }
     where
       lemma : Ξ' +ₘ Ξₜ +ₘ m ×ₘ Ξ₂ ≡ m ×ₘ Ξ₂ +ₘ Ξ' +ₘ Ξₜ 
@@ -115,144 +158,144 @@ module Interpreter where
                     (sym (+ₘ-assoc (m ×ₘ Ξ₂) Ξ' _))
 
   
-  forward  (evalR i ano unit●) _ = now (unit refl)
-  backward (evalR i ano unit●) _ = now emptyRValEnv
+  Forward  (evalR i ano unit●) _ = Now (unit refl)
+  Backward (evalR i ano unit●) _ = Now emptyRValEnv
 
-  forward  (evalR i ano (letunit● r₁ r₂)) ρ = do 
+  Forward  (evalR i ano (letunit● r₁ r₂)) ρ = do 
     ano₁ , ano₂ <- all-no-omega-dist _ _ ano 
     ρ₁ , ρ₂ <- splitRValEnv ρ 
-    bind (forward (evalR i ano₁ r₁) ρ₁) λ { (unit eq) -> forward (evalR i ano₂ r₂) ρ₂ } 
-  backward (evalR i ano (letunit● r₁ r₂)) v = do 
+    Bind (Forward (evalR i ano₁ r₁) ρ₁) λ { (unit eq) -> Forward (evalR i ano₂ r₂) ρ₂ } 
+  Backward (evalR i ano (letunit● r₁ r₂)) v = do 
     ano₁ , ano₂ <- all-no-omega-dist _ _ ano 
-    bind (backward (evalR i ano₂ r₂) v) λ ρ₂ -> 
-     bind (backward (evalR i ano₁ r₁) (unit refl)) λ ρ₁ -> 
-      now (mergeRValEnv ano ρ₁ ρ₂) 
+    Bind (Backward (evalR i ano₂ r₂) v) λ ρ₂ -> 
+     Bind (Backward (evalR i ano₁ r₁) (unit refl)) λ ρ₁ -> 
+      Now (mergeRValEnv ano ρ₁ ρ₂) 
    
-  forward  (evalR i ano (pair● r₁ r₂)) ρ = do 
+  Forward  (evalR i ano (pair● r₁ r₂)) ρ = do 
     ano₁ , ano₂ <- all-no-omega-dist _ _ ano 
     ρ₁  , ρ₂  <- splitRValEnv ρ
-    bind (forward (evalR i ano₁ r₁) ρ₁) λ v₁ -> 
-     bind (forward (evalR i ano₂ r₂) ρ₂) λ v₂ -> 
-      now (pair refl v₁ v₂)
+    Bind (Forward (evalR i ano₁ r₁) ρ₁) λ v₁ -> 
+     Bind (Forward (evalR i ano₂ r₂) ρ₂) λ v₂ -> 
+      Now (pair refl v₁ v₂)
       
-  backward (evalR i ano (pair● {A = A} {B} r₁ r₂)) (pair {Ξ₁ = []} {[]} spΞ v₁ v₂) = do
+  Backward (evalR i ano (pair● {A = A} {B} r₁ r₂)) (pair {Ξ₁ = []} {[]} spΞ v₁ v₂) = do
     ano₁ , ano₂ <- all-no-omega-dist _ _ ano 
-    bind (backward (evalR i ano₁ r₁) v₁) λ ρ₁ -> 
-     bind (backward (evalR i ano₂ r₂) v₂) λ ρ₂ -> 
-      now (mergeRValEnv ano ρ₁ ρ₂)
+    Bind (Backward (evalR i ano₁ r₁) v₁) λ ρ₁ -> 
+     Bind (Backward (evalR i ano₂ r₂) v₂) λ ρ₂ -> 
+      Now (mergeRValEnv ano ρ₁ ρ₂)
 
-  forward (evalR i ano (letpair● r₁ r₂)) ρ = do 
+  Forward (evalR i ano (letpair● r₁ r₂)) ρ = do 
     ano₁ , ano₂ <- all-no-omega-dist _ _ ano 
     ρ₁  , ρ₂  <- splitRValEnv ρ
-    bind (forward (evalR i ano₁ r₁) ρ₁) λ { 
+    Bind (Forward (evalR i ano₁ r₁) ρ₁) λ { 
       (pair {Ξ₁ = []} {[]} spΞ v₁ v₂ ) -> 
-        forward (evalR i (one ∷ one ∷ ano₂) r₂) (v₁ ∷ v₂ ∷ ρ₂)
+        Forward (evalR i (one ∷ one ∷ ano₂) r₂) (v₁ ∷ v₂ ∷ ρ₂)
      }
   
-  backward (evalR i ano (letpair● r₁ r₂)) v = do 
+  Backward (evalR i ano (letpair● r₁ r₂)) v = do 
     ano₁ , ano₂ <-  all-no-omega-dist _ _ ano 
-    bind (backward (evalR i (one ∷ one ∷ ano₂) r₂) v) λ { (v₁ ∷ v₂ ∷ ρ₂) -> 
-      bind (backward (evalR i ano₁ r₁) (pair refl v₁ v₂)) λ ρ₁ -> 
-       now (mergeRValEnv ano ρ₁ ρ₂)
+    Bind (Backward (evalR i (one ∷ one ∷ ano₂) r₂) v) λ { (v₁ ∷ v₂ ∷ ρ₂) -> 
+      Bind (Backward (evalR i ano₁ r₁) (pair refl v₁ v₂)) λ ρ₁ -> 
+       Now (mergeRValEnv ano ρ₁ ρ₂)
      }
   
-  forward (evalR i ano (inl● r)) ρ = bind (forward (evalR i ano r) ρ) λ x -> now (inl x)
-  backward (evalR i ano (inl● r)) v = 
+  Forward (evalR i ano (inl● r)) ρ = Bind (Forward (evalR i ano r) ρ) λ x -> Now (inl x)
+  Backward (evalR i ano (inl● r)) v = 
     CASE v OF λ {
-      (inl v₁) -> backward (evalR i ano r) v₁ ; 
-      (inr v₂) -> never 
+      (inl v₁) -> Backward (evalR i ano r) v₁ ; 
+      (inr v₂) -> Never 
     }
   
-  forward  (evalR i ano (inr● r)) ρ = bind (forward (evalR i ano r) ρ) λ x -> now (inr x)
-  backward (evalR i ano (inr● r)) v = 
+  Forward  (evalR i ano (inr● r)) ρ = Bind (Forward (evalR i ano r) ρ) λ x -> Now (inr x)
+  Backward (evalR i ano (inr● r)) v = 
     CASE v OF λ { 
-      (inl v₁) -> never ; 
-      (inr v₂) -> backward (evalR i ano r) v₂
+      (inl v₁) -> Never ; 
+      (inr v₂) -> Backward (evalR i ano r) v₂
     }
   
-  forward  (evalR i ano (case● {Γ₁ = Γ₁} {Γ₂} r refl θ₁ t₁ θ₂ t₂ f)) ρ = do 
+  Forward  (evalR i ano (case● {Γ₁ = Γ₁} {Γ₂} r refl θ₁ t₁ θ₂ t₂ f)) ρ = do 
     ano₀ , ano- <- all-no-omega-dist _ _ ano
     ρ₀  , ρ-  <- splitRValEnv ρ 
-    bind (forward (evalR i ano₀ r) ρ₀) λ {
+    Bind (Forward (evalR i ano₀ r) ρ₀) λ {
           (inl v₁) -> 
-            bind (eval i (one ∷ ano-) (weakenΘ-valEnv Γ₁ (compat-ext-here ext-id) θ₁) t₁) λ { (red r₁) -> 
-              later λ { .force {j} -> 
-                bind (forward (evalR j (one ∷ ano-) r₁) (v₁ ∷ ρ-)) λ v -> 
-                 bind (apply j [] f v) λ { 
-                   (inl _) -> now v ; 
-                   (inr _) -> never 
+            Bind (eval i (one ∷ ano-) (weakenΘ-valEnv Γ₁ (compat-ext-here ext-id) θ₁) t₁) λ { (red r₁) -> 
+              Later λ { .force {j} -> 
+                Bind (Forward (evalR j (one ∷ ano-) r₁) (v₁ ∷ ρ-)) λ v -> 
+                 Bind (apply j [] f v) λ { 
+                   (inl _) -> Now v ; 
+                   (inr _) -> Never 
                   }                 
               }   
             }
            ; 
           (inr v₂) -> 
-            bind (eval i (one ∷ ano-) (weakenΘ-valEnv Γ₂ (compat-ext-here ext-id) θ₂) t₂) λ { (red r₂) -> 
-              later λ { .force {j} -> 
-                bind (forward (evalR j (one ∷ ano-) r₂) (v₂ ∷ ρ-)) λ v -> 
-                  bind (apply j [] f v) λ {
-                    (inl _) -> never ; 
-                    (inr _) -> now v 
+            Bind (eval i (one ∷ ano-) (weakenΘ-valEnv Γ₂ (compat-ext-here ext-id) θ₂) t₂) λ { (red r₂) -> 
+              Later λ { .force {j} -> 
+                Bind (Forward (evalR j (one ∷ ano-) r₂) (v₂ ∷ ρ-)) λ v -> 
+                  Bind (apply j [] f v) λ {
+                    (inl _) -> Never ; 
+                    (inr _) -> Now v 
                   }
                }
             }
         }
   
-  backward (evalR i ano (case● {Γ₁ = Γ₁} {Γ₂} r refl θ₁ t₁ θ₂ t₂ f)) v = do 
+  Backward (evalR i ano (case● {Γ₁ = Γ₁} {Γ₂} r refl θ₁ t₁ θ₂ t₂ f)) v = do 
     ano₀ , ano- <- all-no-omega-dist _ _ ano 
-    bind (apply i [] f v) λ {
+    Bind (apply i [] f v) λ {
       (inl _) -> 
-         bind (eval i (one ∷ ano-) (weakenΘ-valEnv Γ₁ (compat-ext-here ext-id) θ₁) t₁) λ { (red r₁) -> 
-           later λ { .force {j} -> 
-               bind (backward (evalR j (one ∷ ano-) r₁) v) λ { (v₁ ∷ ρ-) -> 
-                 bind (backward (evalR j ano₀ r) (inl v₁)) λ ρ₀ -> 
-                     now (mergeRValEnv ano ρ₀ ρ-)                 
+         Bind (eval i (one ∷ ano-) (weakenΘ-valEnv Γ₁ (compat-ext-here ext-id) θ₁) t₁) λ { (red r₁) -> 
+           Later λ { .force {j} -> 
+               Bind (Backward (evalR j (one ∷ ano-) r₁) v) λ { (v₁ ∷ ρ-) -> 
+                 Bind (Backward (evalR j ano₀ r) (inl v₁)) λ ρ₀ -> 
+                     Now (mergeRValEnv ano ρ₀ ρ-)                 
                }
             } 
          }
       ;
       (inr _) -> 
-          bind (eval i (one ∷ ano-) (weakenΘ-valEnv Γ₂ (compat-ext-here ext-id) θ₂) t₂) λ { (red r₂) -> 
-            later λ where .force {j} -> 
-                             bind (backward (evalR j (one ∷ ano-) r₂) v) λ { (v₂ ∷ ρ-) -> 
-                               bind (backward (evalR j ano₀ r) (inr v₂)) λ ρ₀ -> 
-                                 now (mergeRValEnv ano ρ₀ ρ-)
+          Bind (eval i (one ∷ ano-) (weakenΘ-valEnv Γ₂ (compat-ext-here ext-id) θ₂) t₂) λ { (red r₂) -> 
+            Later λ where .force {j} -> 
+                             Bind (Backward (evalR j (one ∷ ano-) r₂) v) λ { (v₂ ∷ ρ-) -> 
+                               Bind (Backward (evalR j ano₀ r) (inr v₂)) λ ρ₀ -> 
+                                 Now (mergeRValEnv ano ρ₀ ρ-)
                              }
           }     
      }
 
   
 
-  forward  (evalR i ano (var● x ok)) ρ = now (lkup ok ρ)
-  backward (evalR i ano (var● x ok)) v  = now (unlkup ok v)
+  Forward  (evalR i ano (var● x ok)) ρ = Now (lkup ok ρ)
+  Backward (evalR i ano (var● x ok)) v  = Now (unlkup ok v)
 
-  forward (evalR i ano (pin r f))  ρ = do 
+  Forward (evalR i ano (pin r f))  ρ = do 
     ano₁ , ano₂ <- all-no-omega-dist _ _ ano
     ρ₁  , ρ₂  <- splitRValEnv ρ
-    bind (forward (evalR i ano₁ r) ρ₁) λ v₁ -> 
+    Bind (Forward (evalR i ano₁ r) ρ₁) λ v₁ -> 
       CASE f OF λ { (clo .omega refl θ t) → 
-        later λ { .force {j} -> 
-           bind (eval j ano₂ (tup ∅ _ (∅-lid _) (mult-omega (weakenΘ-value extendΘ v₁) refl) θ) t) λ { 
+        Later λ { .force {j} -> 
+           Bind (eval j ano₂ (tup ∅ _ (∅-lid _) (mult-omega (weakenΘ-value extendΘ v₁) refl) θ) t) λ { 
             (red r₂) -> 
               -- maybe another delaying would be needed here
-              bind (forward (evalR j ano₂ r₂) ρ₂) λ v₂ -> 
-              now (pair refl v₁ v₂)
+              Bind (Forward (evalR j ano₂ r₂) ρ₂) λ v₂ -> 
+              Now (pair refl v₁ v₂)
            }
         }
       } 
   
     
-  backward (evalR i ano (pin r (clo .omega refl θ t))) (pair {Ξ₁ = []} {[]} refl v₁ v₂) = do 
+  Backward (evalR i ano (pin r (clo .omega refl θ t))) (pair {Ξ₁ = []} {[]} refl v₁ v₂) = do 
     ano₁ , ano₂ <- all-no-omega-dist _ _ ano 
-    later λ { .force {j} -> 
-      bindR (eval j ano₂ (tup ∅ _ (∅-lid _) (mult-omega (weakenΘ-value extendΘ v₁) refl) θ) t) λ r₂ -> 
-        bind (backward (evalR j ano₂ r₂) v₂) λ ρ₂ -> 
-        bind (backward (evalR j ano₁ r) v₁) λ ρ₁ -> 
-        now (mergeRValEnv ano ρ₁ ρ₂) 
+    Later λ { .force {j} -> 
+      BindR (eval j ano₂ (tup ∅ _ (∅-lid _) (mult-omega (weakenΘ-value extendΘ v₁) refl) θ) t) λ r₂ -> 
+        Bind (Backward (evalR j ano₂ r₂) v₂) λ ρ₂ -> 
+        Bind (Backward (evalR j ano₁ r) v₁) λ ρ₁ -> 
+        Now (mergeRValEnv ano ρ₁ ρ₂) 
      } 
 
     
-  eval {Θ} _ ano θ (var x ok) = now (subst (λ x -> Value Θ x _) (sym (∅-rid _)) (lookupVar θ ok))
-  eval _ ano θ (abs m t) = now (clo m refl θ t) 
+  eval {Θ} _ ano θ (var x ok) = Now (subst (λ x -> Value Θ x _) (sym (∅-rid _)) (lookupVar θ ok))
+  eval _ ano θ (abs m t) = Now (clo m refl θ t) 
 
   eval {Θ} {Γ = Γ} i ano θ (app {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} {m = m} t₁ t₂)
       with separateEnv {Γ} Δ₁ (m ×ₘ Δ₂) θ
@@ -266,8 +309,8 @@ module Interpreter where
   ... | T₁ | ano-e2m2 | Ξₑ₂' , θ₂' , refl with (subst all-no-omega (sym (×ₘ-dist m Ξₑ₂' _)) ano-e2m2)
   ... | ano-m[e2'2] with eval i (all-no-omega-dist-×ₘ m (Ξₑ₂' +ₘ Ξ₂) ano-m[e2'2]) θ₂' t₂
   ... | T₂ = 
-    bind T₁ (λ { (clo {Ξ' = Ξ'} {Ξₜ = Ξₜ} m spΞ θf t) → bind T₂ λ v₂ -> 
-      later λ { .force ->
+    Bind T₁ (λ { (clo {Ξ' = Ξ'} {Ξₜ = Ξₜ} m spΞ θf t) → Bind T₂ λ v₂ -> 
+      Later λ { .force ->
         let lemma : m ×ₘ (Ξₑ₂' +ₘ Ξ₂) +ₘ Ξ' +ₘ Ξₜ ≡ Ξₑ₁ +ₘ m ×ₘ Ξₑ₂' +ₘ (Ξ₁ +ₘ m ×ₘ Ξ₂)
             lemma = 
               begin 
@@ -287,12 +330,12 @@ module Interpreter where
             lemma-ano : all-no-omega (m ×ₘ (Ξₑ₂' +ₘ Ξ₂) +ₘ Ξ' +ₘ Ξₜ)
             lemma-ano = subst all-no-omega (sym lemma) ano 
               
-        in (bind (eval _ lemma-ano (tup (m ×ₘ (Ξₑ₂' +ₘ Ξ₂)) Ξ' refl (value-to-multM ano-m[e2'2] v₂) θf) t) λ v ->  now (subst (λ Ξ -> Value Θ Ξ _) lemma v)  
+        in (Bind (eval _ lemma-ano (tup (m ×ₘ (Ξₑ₂' +ₘ Ξ₂)) Ξ' refl (value-to-multM ano-m[e2'2] v₂) θf) t) λ v ->  Now (subst (λ Ξ -> Value Θ Ξ _) lemma v)  
        )}
     })
       
   eval {Γ = Γ} _ ano θ (unit ad) with discardable-has-no-resources {Γ} θ ad
-  ... | refl = now (substV (sym (∅-lid _)) (unit refl))
+  ... | refl = Now (substV (sym (∅-lid _)) (unit refl))
 
   eval {Θ} {Ξₑ} {Γ} i ano θ (letunit {Δ₀ = Δ₀} {Δ} {Ξ₀ = Ξ₀} {Ξ} m t₀ t) 
     with separateEnv {Γ} (m ×ₘ Δ₀) Δ θ 
@@ -304,7 +347,7 @@ module Interpreter where
     with all-no-omega-dist (m ×ₘ Ξₑ₁' +ₘ m ×ₘ Ξ₀) _ ano'
   ... | ano-me1'm0 , ano-e2 
     with eval i (all-no-omega-dist-×ₘ m (Ξₑ₁' +ₘ Ξ₀) (subst all-no-omega (sym (×ₘ-dist m Ξₑ₁' Ξ₀)) ano-me1'm0)) θ₁' t₀ 
-  ... | T₀ = bind T₀ λ { (unit emp-e1'0) → 
+  ... | T₀ = Bind T₀ λ { (unit emp-e1'0) → 
       let lemma : Ξₑ₂ +ₘ Ξ ≡ (m ×ₘ Ξₑ₁' +ₘ Ξₑ₂) +ₘ ((m ×ₘ Ξ₀) +ₘ Ξ)
           lemma = 
             begin 
@@ -320,7 +363,7 @@ module Interpreter where
             ≡⟨ +ₘ-transpose (m ×ₘ Ξₑ₁') (m ×ₘ Ξ₀) Ξₑ₂ Ξ ⟩ 
               (m ×ₘ Ξₑ₁' +ₘ Ξₑ₂) +ₘ ((m ×ₘ Ξ₀) +ₘ Ξ)
             ∎
-      in dmap (substV lemma) (eval i ano-e2 θ₂ t)
+      in Dmap (substV lemma) (eval i ano-e2 θ₂ t)
    }
 
   eval {Θ} {Ξₑ} {Γ} i ano θ (pair {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} t₁ t₂) 
@@ -331,8 +374,8 @@ module Interpreter where
     with all-no-omega-dist (Ξₑ₁ +ₘ Ξ₁) _ ano'
   ... | ano-e11 , ano-e22 
     with eval i ano-e11 θ₁ t₁ | eval i ano-e22 θ₂ t₂ 
-  ... | T₁ | T₂ = bind T₁ λ v₁ -> 
-                  bind T₂ λ v₂ -> now (pair (+ₘ-transpose Ξₑ₁ Ξ₁ Ξₑ₂ _) v₁ v₂) 
+  ... | T₁ | T₂ = Bind T₁ λ v₁ -> 
+                  Bind T₂ λ v₂ -> Now (pair (+ₘ-transpose Ξₑ₁ Ξ₁ Ξₑ₂ _) v₁ v₂) 
 
   eval {Θ} {Ξₑ} {Γ} i ano θ (letpair {Δ₀ = Δ₀} {Δ} {Ξ₀ = Ξ₀} {Ξ} m t₀ t) 
     with separateEnv {Γ} (m ×ₘ Δ₀) Δ θ 
@@ -348,7 +391,7 @@ module Interpreter where
     with all-no-omega-dist-×ₘ m _ ano-m[e1'0] 
   ... | ano-e1'0 
     with eval i ano-e1'0 θ₁' t₀ 
-  ... | T₀  = bind T₀ λ { (pair {Ξ₁ = Ξ₁} {Ξ₂} spΞ v₁ v₂) → 
+  ... | T₀  = Bind T₀ λ { (pair {Ξ₁ = Ξ₁} {Ξ₂} spΞ v₁ v₂) → 
                    let ano-m[12] : all-no-omega (m ×ₘ (Ξ₁ +ₘ Ξ₂))
                        ano-m[12] = subst all-no-omega (cong (m ×ₘ_) (sym spΞ)) ano-m[e1'0] 
 
@@ -386,12 +429,12 @@ module Interpreter where
                            -- solve 4 (λ a b c d -> 
                            --                 ((a ⊞ b) ⊞ c) ⊞ d ⊜ 
                            --                 (a ⊞ c) ⊞ (b ⊞ d)) refl (m ×ₘ Ξₑ₁') (m ×ₘ Ξ₀) Ξₑ₂ Ξ
-                   in dmap (substV eq') (eval i (subst all-no-omega (sym eq') ano) θ' t) 
+                   in Dmap (substV eq') (eval i (subst all-no-omega (sym eq') ano) θ' t) 
               }
 
 
-  eval i ano θ (inl t) = dmap inl (eval i ano θ t) 
-  eval i ano θ (inr t) = dmap inr (eval i ano θ t)
+  eval i ano θ (inl t) = Dmap inl (eval i ano θ t) 
+  eval i ano θ (inr t) = Dmap inr (eval i ano θ t)
   eval {Θ} {Ξₑ = Ξₑ} {Γ} i ano θ (case {Δ₀ = Δ₀} {Δ} {Ξ₀ = Ξ₀} {Ξ} m t₀ t₁ t₂) 
     with separateEnv {Γ} (m ×ₘ Δ₀) Δ θ 
   ... | tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ 
@@ -406,15 +449,15 @@ module Interpreter where
     with all-no-omega-dist-×ₘ m _ ano-m[e1'0] 
   ... | ano-e1'0 
     with eval i ano-e1'0 θ₁' t₀ 
-  ... | T₀ =  bind T₀ λ { 
+  ... | T₀ =  Bind T₀ λ { 
                 (inl v) → 
                   let θ' : ValEnv (_ ∷ Γ) (M→M₀ m ∷ Δ) Θ (m ×ₘ (Ξₑ₁' +ₘ Ξ₀) +ₘ Ξₑ₂)
                       θ' = tup (m ×ₘ (Ξₑ₁' +ₘ Ξ₀)) Ξₑ₂ refl (value-to-multM ano-m[e1'0] v) θ₂
-                  in dmap (substV lemma) (eval i (subst all-no-omega (sym lemma) ano) θ' t₁) ; 
+                  in Dmap (substV lemma) (eval i (subst all-no-omega (sym lemma) ano) θ' t₁) ; 
                 (inr v) →
                   let θ' : ValEnv (_ ∷ Γ) (M→M₀ m ∷ Δ) Θ (m ×ₘ (Ξₑ₁' +ₘ Ξ₀) +ₘ Ξₑ₂)
                       θ' = tup (m ×ₘ (Ξₑ₁' +ₘ Ξ₀)) Ξₑ₂ refl (value-to-multM ano-m[e1'0] v) θ₂
-                  in dmap (substV lemma) (eval i (subst all-no-omega (sym lemma) ano) θ' t₂) 
+                  in Dmap (substV lemma) (eval i (subst all-no-omega (sym lemma) ano) θ' t₂) 
               }
       where
         lemma : m ×ₘ (Ξₑ₁' +ₘ Ξ₀) +ₘ Ξₑ₂ +ₘ Ξ ≡ 
@@ -430,13 +473,13 @@ module Interpreter where
            (m ×ₘ Ξₑ₁' +ₘ Ξₑ₂) +ₘ (m ×ₘ Ξ₀ +ₘ Ξ)
           ∎
 
-  eval i ano θ (roll t) = dmap roll (eval i ano θ t)
+  eval i ano θ (roll t) = Dmap roll (eval i ano θ t)
   eval i ano θ (unroll t) = 
-   bind (eval i ano θ t) λ { (roll v) → later λ where .force -> now v  }
+   Bind (eval i ano θ t) λ { (roll v) → Later λ where .force -> Now v  }
 
 
   eval {Γ = Γ} i ano θ (unit● ad) with discardable-has-no-resources {Γ} θ ad
-  ... | refl = now (red (substR (sym (∅-lid _)) unit●))
+  ... | refl = Now (red (substR (sym (∅-lid _)) unit●))
 
   eval {Θ} {Ξₑ} {Γ} i ano θ (letunit● {Δ₀ = Δ₀} {Δ} {Ξ₀ = Ξ₀} {Ξ} t₀ t) = do 
     tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ <- separateEnv {Γ} Δ₀ Δ θ
@@ -444,9 +487,9 @@ module Interpreter where
         lemma = +ₘ-transpose _ _ _ _ 
     let ano' = subst all-no-omega lemma ano 
     ano-e10 , ano-e2- <- all-no-omega-dist (Ξₑ₁ +ₘ Ξ₀) _ ano' 
-    bindR (eval i ano-e10 θ₁ t₀) λ E₀ -> 
-     bindR (eval i ano-e2- θ₂ t) λ E -> 
-       now (red (substR (sym lemma) (letunit● E₀ E)))
+    BindR (eval i ano-e10 θ₁ t₀) λ E₀ -> 
+     BindR (eval i ano-e2- θ₂ t) λ E -> 
+       Now (red (substR (sym lemma) (letunit● E₀ E)))
 
   eval {Θ} {Ξₑ} {Γ} i ano θ (pair● {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} t₁ t₂) = do 
     tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂ <- separateEnv {Γ} Δ₁ Δ₂ θ
@@ -454,9 +497,9 @@ module Interpreter where
         lemma = +ₘ-transpose _ _ _ _ 
     let ano' = subst all-no-omega lemma ano
     ano-e11 , ano-e22 <- all-no-omega-dist (Ξₑ₁ +ₘ Ξ₁) _ ano' 
-    bindR (eval i ano-e11 θ₁ t₁) λ E₁ -> 
-      bindR (eval i ano-e22 θ₂ t₂) λ E₂ -> 
-        now (red (substR (sym lemma) (pair● E₁ E₂)))  
+    BindR (eval i ano-e11 θ₁ t₁) λ E₁ -> 
+      BindR (eval i ano-e22 θ₂ t₂) λ E₂ -> 
+        Now (red (substR (sym lemma) (pair● E₁ E₂)))  
   
   eval {Θ} {Ξₑ} {Γ} i ano θ (letpair● {Δ₀ = Δ₀} {Δ} {Ξ₀ = Ξ₀} {Ξ} t₀ t) 
     with separateEnv {Γ} Δ₀ Δ θ 
@@ -467,17 +510,17 @@ module Interpreter where
   ... | ano-e10 , ano-e2- 
     with eval i ano-e10 θ₁ t₀ | eval i (one ∷ one ∷ ano-e2-) (weakenΘ-valEnv Γ (compat-ext-here (compat-ext-here ext-id)) θ₂) t 
   ... | T₁ | T = 
-    bind T₁ λ { (red E₁) -> 
-     bind T  λ { (red E ) -> 
-       now (red (substR (+ₘ-transpose Ξₑ₁ Ξ₀ _ _) (letpair● E₁ E)))
+    Bind T₁ λ { (red E₁) -> 
+     Bind T  λ { (red E ) -> 
+       Now (red (substR (+ₘ-transpose Ξₑ₁ Ξ₀ _ _) (letpair● E₁ E)))
      }}
 
   eval i ano θ (inl● t) = 
-    bindR (eval i ano θ t) λ E -> now (red (inl● E))
+    BindR (eval i ano θ t) λ E -> Now (red (inl● E))
     
   
   eval i ano θ (inr● t) = 
-    bindR (eval i ano θ t) λ E -> now (red (inr● E))    
+    BindR (eval i ano θ t) λ E -> Now (red (inr● E))    
   
   eval {Θ} {Ξₑ} {Γ} i ano θ (case● {Δ₀ = Δ₀} {Δ} {Δ'} {Ξ₀ = Ξ₀} {Ξ} {Ξ'} t t₁ t₂ t₃) 
     with separateEnv {Γ} (Δ₀ +ₘ Δ) _ θ 
@@ -508,9 +551,9 @@ module Interpreter where
   ... | refl
     with eval i ano-e10 θ₁ t | eval i (subst all-no-omega (sym (∅-lid _)) all-no-omega-∅) θ₃' t₃ 
   ... | T | T₃ = 
-        bind T λ { (red r) ->
-        bind T₃ λ { f -> 
-          now (red (substR (trans lemma' (sym lemma))
+        Bind T λ { (red r) ->
+        Bind T₃ λ { f -> 
+          Now (red (substR (trans lemma' (sym lemma))
             let f' = weakenΘ-value smashΘ (subst (λ x -> Value Θ x _) (∅-lid ∅) f)
             in (case● r refl θ₂ t₁ θ₂ t₂ f')))
       -- case● (subst all-no-omega lemma' ano') r refl ano-e2- θ₂ t₁ θ₂ t₂ f
@@ -531,15 +574,15 @@ module Interpreter where
  
   eval {Θ} {Ξₑ} {Γ} i ano θ (var● x ad ok) 
     with discardable-has-no-resources {Γ} θ ad
-  ... | refl = now (red (substR (sym (∅-lid _)) (var● x ok)))
+  ... | refl = Now (red (substR (sym (∅-lid _)) (var● x ok)))
 
   eval {Θ} {Ξₑ} {Γ} i ano θ (pin {Δ₁ = Δ₁} {Δ₂} {Ξ₁ = Ξ₁} {Ξ₂} t₁ t₂) = do 
     tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂  <- separateEnv {Γ} Δ₁ Δ₂ θ 
     let ano' = subst all-no-omega (+ₘ-transpose Ξₑ₁ Ξₑ₂ Ξ₁ _) ano
     ano-e11 , ano-e22 <- all-no-omega-dist (Ξₑ₁ +ₘ Ξ₁) _ ano' 
-    bindR (eval i ano-e11 θ₁ t₁) λ r -> 
-      bind (eval i ano-e22 θ₂ t₂) λ v -> 
-        now (red (substR (+ₘ-transpose _ _ _ _) (pin r v)))
+    BindR (eval i ano-e11 θ₁ t₁) λ r -> 
+      Bind (eval i ano-e22 θ₂ t₂) λ v -> 
+        Now (red (substR (+ₘ-transpose _ _ _ _) (pin r v)))
      
     
   
@@ -548,9 +591,9 @@ module Interpreter where
     ano₁ , ano₂  <- all-no-omega-dist _ _ ano 
     refl <- all-no-omega-omega×ₘ _ ano₁  
     refl <- all-no-omega-omega×ₘ _ ano₂ 
-    bind (eval i (subst all-no-omega (sym (∅-lid ∅)) all-no-omega-∅ ) θ' e) λ v -> 
-      bindR (apply i (one ∷ subst all-no-omega (sym lemma₁) all-no-omega-∅) (weakenΘ-value (compat-ext-here ext-id) v) (red var●₀)) λ r -> 
-        now (substV (sym lemma₂) (inj refl (weakenΘ-residual (compat-skip smashΘ) (substR (cong (one ∷_) lemma₁) r) )))
+    Bind (eval i (subst all-no-omega (sym (∅-lid ∅)) all-no-omega-∅ ) θ' e) λ v -> 
+      BindR (apply i (one ∷ subst all-no-omega (sym lemma₁) all-no-omega-∅) (weakenΘ-value (compat-ext-here ext-id) v) (red var●₀)) λ r -> 
+        Now (substV (sym lemma₂) (inj refl (weakenΘ-residual (compat-skip smashΘ) (substR (cong (one ∷_) lemma₁) r) )))
     where
       open import Data.Vec.Properties using (map-id) 
       lemma₁ : ∀ {n} -> ∅ +ₘ ∅ +ₘ Data.Vec.map (λ y -> y) ∅ ≡ ∅ {n}
@@ -566,13 +609,13 @@ module Interpreter where
     tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂  <- separateEnv {Γ} _ _ θ 
     Ξₑ₂' , θ₂' , refl <- weakenΔ-valEnv Γ θ₂
     ano₁' , _ <- all-no-omega-dist _ _ (subst all-no-omega lemma' ano)
-    bind (eval i ano₁' θ₁ e₁) λ { 
+    Bind (eval i ano₁' θ₁ e₁) λ { 
       (inj spΞ r) → do 
         refl , refl <- ∅+ₘ∅-inv _ _ (sym spΞ)
         refl <- all-no-omega-omega×ₘ _ (subst all-no-omega (∅-lid _) anoₑ)         
-        bind (eval i (subst all-no-omega (sym (∅-lid ∅)) all-no-omega-∅) θ₂' e₂) λ v -> later λ { .force {j} -> 
-           bind (forward (evalR j (one ∷ all-no-omega-∅) r) (weakenΘ-value smashΘ (substV (∅-lid ∅) v) ∷ [])) λ v' -> 
-            now (substV (sym lemma) (weakenΘ-value extendΘ v'))
+        Bind (eval i (subst all-no-omega (sym (∅-lid ∅)) all-no-omega-∅) θ₂' e₂) λ v -> Later λ { .force {j} -> 
+           Bind (Forward (evalR j (one ∷ all-no-omega-∅) r) (weakenΘ-value smashΘ (substV (∅-lid ∅) v) ∷ [])) λ v' -> 
+            Now (substV (sym lemma) (weakenΘ-value extendΘ v'))
          } 
      } 
     where
@@ -589,13 +632,13 @@ module Interpreter where
     tup Ξₑ₁ Ξₑ₂ refl θ₁ θ₂  <- separateEnv {Γ} _ _ θ 
     Ξₑ₂' , θ₂' , refl <- weakenΔ-valEnv Γ θ₂
     ano₁' , _ <- all-no-omega-dist _ _ (subst all-no-omega lemma' ano)
-    bind (eval i ano₁' θ₁ e₁) λ { 
+    Bind (eval i ano₁' θ₁ e₁) λ { 
       (inj spΞ r) → do 
         refl , refl <- ∅+ₘ∅-inv _ _ (sym spΞ)
         refl <- all-no-omega-omega×ₘ _ (subst all-no-omega (∅-lid _) anoₑ)         
-        bind (eval i (subst all-no-omega (sym (∅-lid ∅)) all-no-omega-∅) θ₂' e₂) λ v -> later λ { .force {j} -> 
-          bind (backward (evalR j (one ∷ all-no-omega-∅) r) (weakenΘ-value smashΘ (substV (∅-lid ∅) v))) λ { (v' ∷ []) -> 
-             now (substV (sym lemma) (weakenΘ-value extendΘ v'))
+        Bind (eval i (subst all-no-omega (sym (∅-lid ∅)) all-no-omega-∅) θ₂' e₂) λ v -> Later λ { .force {j} -> 
+          Bind (Backward (evalR j (one ∷ all-no-omega-∅) r) (weakenΘ-value smashΘ (substV (∅-lid ∅) v))) λ { (v' ∷ []) -> 
+             Now (substV (sym lemma) (weakenΘ-value extendΘ v'))
            }
            -- bind (forward (evalR j (one ∷ all-no-omega-∅) r) (weakenΘ-value smashΘ (substV (∅-lid ∅) v) ∷ [])) λ v' -> 
            --  now (substV (sym lemma) (weakenΘ-value extendΘ v'))
