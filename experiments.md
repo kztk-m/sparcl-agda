@@ -1,6 +1,84 @@
 # Experiments 
 
-## For 93af71 (with Agda 2.6.1)
+## For 8687453 (with Agda 2.6.1)
+
+```
+$ time agda -v0 -v profile:15 Definitional.agda +RTS -H1G -A128M -s > out3.txt
+1,858,412,319,984 bytes allocated in the heap
+  63,144,612,472 bytes copied during GC
+     405,108,536 bytes maximum residency (37 sample(s))
+       1,046,808 bytes maximum slop
+             386 MB total memory in use (0 MB lost due to fragmentation)
+
+                                     Tot time (elapsed)  Avg pause  Max pause
+  Gen  0      3886 colls,     0 par   109.527s  111.773s     0.0288s    0.1418s
+  Gen  1        37 colls,     0 par    8.610s   8.736s     0.2361s    0.3256s
+
+  TASKS: 4 (1 bound, 3 peak workers (3 total), using -N1)
+
+  SPARKS: 0(0 converted, 0 overflowed, 0 dud, 0 GC'd, 0 fizzled)
+
+  INIT    time    0.001s  (  0.004s elapsed)
+  MUT     time  735.053s  (752.646s elapsed)
+  GC      time  118.137s  (120.509s elapsed)
+  EXIT    time    0.000s  (  0.015s elapsed)
+  Total   time  853.192s  (873.174s elapsed)
+
+  Alloc rate    2,528,268,569 bytes per MUT second
+
+  Productivity  86.2% of total user, 86.2% of total elapsed
+
+agda -v0 -v profile:15 Definitional.agda +RTS -H1G -A128M -s > out3.txt  853.20s user 3.16s system 98% cpu 14:33.28 total
+```
+
+```
+Total                        856,231ms            
+Miscellaneous                    314ms            
+Termination                   10,581ms (828,099ms)
+Termination.Graph            807,370ms            
+Termination.Compare           10,132ms            
+Termination.RecCheck              14ms            
+Positivity                    12,603ms            
+Deserialization                6,042ms   (7,320ms)
+Deserialization.Compaction     1,278ms            
+Typing                           190ms   (5,602ms)
+Typing.CheckRHS                1,969ms            
+Typing.With                    1,618ms            
+Typing.CheckLHS                  385ms   (1,327ms)
+Typing.CheckLHS.UnifyIndices     941ms            
+Typing.OccursCheck               392ms            
+Typing.TypeSig                   104ms            
+Serialization                    497ms     (940ms)
+Serialization.BinaryEncode       259ms            
+Serialization.BuildInterface     147ms            
+Serialization.Compress            28ms            
+Parsing                           38ms     (400ms)
+Parsing.OperatorsExpr            287ms            
+Parsing.OperatorsPattern          74ms            
+Import                           342ms            
+Scoping                          232ms     (294ms)
+Scoping.InverseScopeLookup        61ms            
+Coverage                         215ms            
+DeadCode                          51ms            
+Injectivity                       29ms            
+Highlighting                      24ms            
+Accumulated statistics
+A.Name  (fresh)         3,384
+A.QName  (fresh)        1,566
+Double  (fresh)            12
+Integer  (fresh)            3
+Node  (fresh)         121,442
+Shared Term  (fresh)        0
+String  (fresh)         1,380
+Text  (fresh)               1
+attempted-constraints   1,239
+max-open-constraints       22
+metas                   4,172
+pointers  (fresh)           0
+
+```
+
+## For 93af714 (with Agda 2.6.1)
 
 ```
 $ time agda -v0 -v profile:15 Definitional.agda +RTS -H1G -A128M -s > out2.txt
