@@ -19,18 +19,21 @@ data Multiplicity : Set where
   one   : Multiplicity 
   omega : Multiplicity
 
+-- Multiplicities with 0.
+-- This is a deviation from the papers. Having 0 is convenient for handling uses of variables. 
 data Multiplicity₀ : Set where
   zero  : Multiplicity₀
   one   : Multiplicity₀
   omega : Multiplicity₀
 
+-- Embedding 
 M→M₀ : Multiplicity -> Multiplicity₀
-M→M₀ one = one 
+M→M₀ one   = one 
 M→M₀ omega = omega 
 
-TyCon : Set 
-TyCon = ℕ 
-
+-- Since it is cumbersome to handle type and value constructors, we handle them differently in 
+-- this implementation. Superficially, we have (multiplicative) product and (additive) sum types, and
+-- iso-recursive types. To express non-linear constructors, we prepare |Un|. 
 data Ty : ℕ -> Set where 
   _⊕_    : ∀ {n} -> Ty n -> Ty n -> Ty n 
   tunit  : ∀ {n} -> Ty n 
@@ -54,6 +57,7 @@ tbool : Ty zero
 tbool = tunit ⊕ tunit 
 
 module _ where 
+  -- Several properties to handle recursive types. 
   open import Data.Nat.Properties
   private 
     lemma : ∀ {m n} -> m ≤ n -> ∃[ k ] (k + m ≡ n)
@@ -107,18 +111,27 @@ module TyExamples where
   natlist : ∀ {n} -> Ty n 
   natlist = μ (tunit ⊕ (nat ⊗ tvar zero))
 
+{- 
+
+Instead of handling an environment that maps variables to pairs of
+types and multiplicities, we handle two sort of environments: one maps
+variables to types and the other maps variables to multiplicities.
+
+We will use de Bruijn indices for variables, and thus type
+environments are represented as a list of types. The treatment of
+multiplicity environment is similar but we assume that it has the same
+length with the corresponding type environment; so we use Vec for
+multiplicity environments.
+
+-} 
 TyEnv : Set 
 TyEnv = List (Ty zero) 
 
 MultEnv : ∀ ℕ -> Set 
 MultEnv n = Vec Multiplicity₀ n 
 
--- MultEnvL : ∀ ℕ -> Set 
--- MultEnvL n = Vec (Maybe MultiplicityL) n 
-
--- _×ₘ_ : Multiplicity -> Multiplicity -> Multiplicity
--- one ×ₘ   m = m 
--- omega ×ₘ m = omega 
+-----------------------------------------------------------------------------
+-- Operations and properties for multiplicities
 
 mul₀ : Multiplicity₀ -> Multiplicity₀ -> Multiplicity₀
 mul₀ zero y = zero
@@ -134,12 +147,6 @@ mul₀-m-zero omega = refl
 
 _×ₘ_ : ∀{n} -> Multiplicity -> MultEnv n -> MultEnv n
 m ×ₘ Γ = Data.Vec.map (mul₀ (M→M₀ m)) Γ
-
--- _+ₑ_ : ∀ {n} -> MultEnv n -> MultEnv n -> MultEnv n 
--- [] +ₑ [] = []
--- (just _ ∷ Δ₁) +ₑ (just _  ∷ Δ₂) = just omega ∷ Δ₁ +ₑ Δ₂
--- (just x ∷ Δ₁) +ₑ (nothing ∷ Δ₂) = just x ∷ Δ₁ +ₑ Δ₂
--- (nothing ∷ Δ₁) +ₑ (x₁ ∷ Δ₂) = x₁ ∷ Δ₁ +ₑ Δ₂  
 
 add₀ : Multiplicity₀ -> Multiplicity₀ -> Multiplicity₀
 add₀ zero m = m 
@@ -182,6 +189,9 @@ mul₀-dist-add₀ omega one one = refl
 mul₀-dist-add₀ omega one omega = refl
 mul₀-dist-add₀ omega omega z = refl 
 
+-----------------------------------------------------------------------------
+-- Operations and properties for multiplicity environments
+
 infixr 7 _×ₘ_ 
 infixl 6 _+ₘ_ 
 
@@ -210,6 +220,7 @@ _+ₘ_ : ∀ {n} -> MultEnv n -> MultEnv n -> MultEnv n
    add₀ x₁ (add₀ x₂ x₃) ∷ Δ₁ +ₘ (Δ₂ +ₘ Δ₃)
   ∎
 
+-- The multiplicity environment that maps all variables into 0. 
 ∅ : ∀ {n} -> MultEnv n 
 ∅ = Data.Vec.replicate zero 
 
@@ -268,6 +279,7 @@ one×ₘ (x ∷ Δ) = cong (_∷_ x) (one×ₘ Δ)
 ×ₘ∅ {suc n} one   = cong (_∷_ zero) (×ₘ∅ one)
 ×ₘ∅ {suc n} omega = cong (_∷_ zero) (×ₘ∅ omega)
 
+
 module _ where
   open import Data.Vec.Properties 
 
@@ -294,16 +306,20 @@ module _ where
 ×ₘ-dist m (x₁ ∷ Δ₁) (x₂ ∷ Δ₂) = 
   cong₂ (_∷_) (mul₀-dist-add₀ (M→M₀ m) x₁ x₂) (×ₘ-dist m Δ₁ Δ₂) 
 
+×ₘ-split : ∀ {n} m (Δ : MultEnv n)  -> ∃[ Δ' ] (m ×ₘ Δ ≡ Δ +ₘ Δ' )
+×ₘ-split m [] = [] , refl
+×ₘ-split m (x ∷ Δ) with ×ₘ-split m Δ
+×ₘ-split one (x ∷ Δ) | Δ' , eq = zero ∷ Δ' , cong₂ (_∷_) (sym (add₀-m-zero x)) eq
+×ₘ-split omega (zero ∷ Δ) | Δ' , eq = zero ∷ Δ' , cong (_∷_ zero) eq
+×ₘ-split omega (one ∷ Δ) | Δ' , eq = one ∷ Δ' , cong (_∷_ omega) eq
+×ₘ-split omega (omega ∷ Δ) | Δ' , eq = one ∷ Δ' , cong (_∷_ omega) eq 
+
+-----------------------------------------------------------------------------
+-- Constraints on multiplicity environments
+
 open import Data.Vec.Relation.Unary.All 
 
-data no-omega : (m : Multiplicity₀) -> Set where
-  zero : no-omega zero 
-  one  : no-omega one 
-
-no-omega-dist : ∀ x y -> no-omega (add₀ x y) -> no-omega x × no-omega y 
-no-omega-dist zero y noω   = zero , noω
-no-omega-dist one zero noω = one , zero 
-
+-- all-zero Δ essentially asserts that Δ is ∅ 
 all-zero : ∀ {n} -> Vec Multiplicity₀ n -> Set 
 all-zero = All (λ x -> x ≡ zero) 
 
@@ -315,13 +331,23 @@ all-zero-∅-inv : ∀ {n} -> (Δ : MultEnv n) -> all-zero {n} Δ -> Δ ≡ ∅
 all-zero-∅-inv .[] [] = refl
 all-zero-∅-inv .(zero ∷ _) (refl ∷ az) = cong (_∷_ zero) (all-zero-∅-inv _ az) 
 
+data no-omega : (m : Multiplicity₀) -> Set where
+  zero : no-omega zero 
+  one  : no-omega one 
+
+no-omega-dist : ∀ x y -> no-omega (add₀ x y) -> no-omega x × no-omega y 
+no-omega-dist zero y noω   = zero , noω
+no-omega-dist one zero noω = one , zero 
+
+-- all-no-omega Δ asserts that Δ(x) cannot be omega. 
 all-no-omega : ∀ {n} -> Vec Multiplicity₀ n -> Set 
 all-no-omega = All no-omega 
+
+-- Several properties of all-no-omega. 
 
 all-no-omega-∅ : ∀ {n} -> all-no-omega (∅ {n})
 all-no-omega-∅ {zero}  = []
 all-no-omega-∅ {suc n} = zero ∷ all-no-omega-∅ 
-
 
 all-no-omega-dist : ∀ {n} (Δ₁ Δ₂ : MultEnv n) -> all-no-omega (Δ₁ +ₘ Δ₂) -> 
                     all-no-omega Δ₁ × all-no-omega Δ₂
@@ -329,14 +355,6 @@ all-no-omega-dist [] [] ano = [] , []
 all-no-omega-dist (x₁ ∷ Δ₁) (x₂ ∷ Δ₂) (noω ∷ ano) 
   with no-omega-dist x₁ x₂ noω | all-no-omega-dist Δ₁ Δ₂ ano
 ... | no₁ , no₂ | ano₁ , ano₂ = no₁ ∷ ano₁ , no₂ ∷ ano₂ 
-
-×ₘ-split : ∀ {n} m (Δ : MultEnv n)  -> ∃[ Δ' ] (m ×ₘ Δ ≡ Δ +ₘ Δ' )
-×ₘ-split m [] = [] , refl
-×ₘ-split m (x ∷ Δ) with ×ₘ-split m Δ
-×ₘ-split one (x ∷ Δ) | Δ' , eq = zero ∷ Δ' , cong₂ (_∷_) (sym (add₀-m-zero x)) eq
-×ₘ-split omega (zero ∷ Δ) | Δ' , eq = zero ∷ Δ' , cong (_∷_ zero) eq
-×ₘ-split omega (one ∷ Δ) | Δ' , eq = one ∷ Δ' , cong (_∷_ omega) eq
-×ₘ-split omega (omega ∷ Δ) | Δ' , eq = one ∷ Δ' , cong (_∷_ omega) eq 
 
 
 all-no-omega-dist-×ₘ : 
@@ -367,107 +385,14 @@ all-no-omega-omega×ₘ : ∀ {n} (Δ : MultEnv n) -> all-no-omega (omega ×ₘ 
 all-no-omega-omega×ₘ [] ano = refl
 all-no-omega-omega×ₘ (zero ∷ Δ) (px ∷ ano) = cong (_∷_ zero) (all-no-omega-omega×ₘ Δ ano) 
 
--- data _×ₑ_is_ : ∀ {n} -> Multiplicity -> MultEnvL n -> MultEnvL n -> Set where
---   one-×ₑ     : ∀ {n} {Ξ : MultEnvL n} -> one ×ₑ Ξ is Ξ
---   omega-×ₑ   : ∀ {n} {Ξ : MultEnvL n} -> All (λ x -> x ≡ nothing) Ξ -> omega ×ₑ Ξ is Ξ
+-----------------------------------------------------------------------------
 
--- _+L_ : ∀ {n} -> MultEnvL n -> MultEnvL n -> Maybe (MultEnvL n) 
--- [] +L [] = just []
--- (just x ∷ Ξ₁) +L (just x₁ ∷ Ξ₂) = nothing
--- (just x ∷ Ξ₁) +L (nothing ∷ Ξ₂) with Ξ₁ +L Ξ₂ 
--- ... | nothing = nothing 
--- ... | just Ξ = just (just x ∷ Ξ)
--- (nothing ∷ Ξ₁) +L (x₁ ∷ Ξ₂) with Ξ₁ +L Ξ₂ 
--- ... | nothing = nothing
--- ... | just Ξ = just (x₁ ∷ Ξ) 
-
--- replicate-nothing-is-all-nothing : ∀ {ℓ n A} -> All (λ x -> x ≡ nothing {ℓ} {A}) {n = n} (Data.Vec.replicate {ℓ} {n = n} nothing)
--- replicate-nothing-is-all-nothing {n = 0F}    = []
--- replicate-nothing-is-all-nothing {n = suc n} = refl ∷ replicate-nothing-is-all-nothing 
-
--- all-nothing-is-replicate-nothing : ∀ {ℓ n} {A : Set ℓ} {Ξ : Vec (Maybe A) n} -> All (λ x -> x ≡ nothing) Ξ -> Ξ ≡ Data.Vec.replicate nothing
--- all-nothing-is-replicate-nothing [] = refl
--- all-nothing-is-replicate-nothing (refl ∷ all-nothing-Ξ) with all-nothing-is-replicate-nothing all-nothing-Ξ 
--- ... | refl = refl 
-
--- _M×ₑ_is_ : ∀ {n} -> Maybe Multiplicity -> MultEnvL n -> MultEnvL n -> Set
--- just π M×ₑ Ξ is Ξ' = π ×ₑ Ξ is Ξ'
--- nothing M×ₑ Ξ is Ξ' = (Ξ ≡ Data.Vec.replicate nothing) × (Ξ' ≡ Data.Vec.replicate nothing)
-
--- data _+ₑ_is_ : ∀ {n} -> MultEnvL n -> MultEnvL n -> MultEnvL n -> Set where 
---   []+[]is[] : [] +ₑ [] is [] 
---   n+n-step  : ∀ {n} {Ξ₁ Ξ₂ Ξ : MultEnvL n} -> 
---               Ξ₁ +ₑ Ξ₂ is Ξ -> (nothing ∷ Ξ₁) +ₑ (nothing ∷ Ξ₂) is (nothing ∷ Ξ)
---   n+j-step  : ∀ {n} {Ξ₁ Ξ₂ Ξ : MultEnvL n} -> 
---               Ξ₁ +ₑ Ξ₂ is Ξ -> (nothing ∷ Ξ₁) +ₑ (just one ∷ Ξ₂) is (just one ∷ Ξ)
---   j+n-step  : ∀ {n} {Ξ₁ Ξ₂ Ξ : MultEnvL n} -> 
---               Ξ₁ +ₑ Ξ₂ is Ξ -> (just one ∷ Ξ₁) +ₑ (nothing ∷ Ξ₂) is (just one ∷ Ξ)
-
--- _+ₑ_is_ : ∀ {n} -> MultEnvL n -> MultEnvL n -> MultEnvL n -> Set
--- Ξ₁ +ₑ Ξ₂ is Ξ = Ξ₁ +L Ξ₂ ≡ just Ξ
-
--- infixl 6 _+ₑ_ 
--- infixl 6 _+L_ 
--- infixr 7 _×ₑ_ 
-
--- +L-comm : ∀ {n} (Ξ₁ Ξ₂ : MultEnvL n) -> 
---           Ξ₁ +L Ξ₂ ≡ Ξ₂ +L Ξ₁ 
--- +L-comm [] [] = refl
--- +L-comm (just x ∷ Ξ₁) (just x₁ ∷ Ξ₂) = refl
--- +L-comm (just x ∷ Ξ₁) (nothing ∷ Ξ₂) with Ξ₁ +L Ξ₂ | Ξ₂ +L Ξ₁ | +L-comm Ξ₁ Ξ₂  
--- +L-comm (just x ∷ Ξ₁) (nothing ∷ Ξ₂) | just x₁ | .(just x₁) | refl = refl
--- +L-comm (just x ∷ Ξ₁) (nothing ∷ Ξ₂) | nothing | .nothing | refl = refl
--- +L-comm (nothing ∷ Ξ₁) (just x ∷ Ξ₂) with Ξ₁ +L Ξ₂ | Ξ₂ +L Ξ₁ | +L-comm Ξ₁ Ξ₂  
--- +L-comm (nothing ∷ Ξ₁) (just x ∷ Ξ₂) | just x₁ | .(just x₁) | refl = refl
--- +L-comm (nothing ∷ Ξ₁) (just x ∷ Ξ₂) | nothing | .nothing | refl = refl
--- +L-comm (nothing ∷ Ξ₁) (nothing ∷ Ξ₂) with Ξ₁ +L Ξ₂ | Ξ₂ +L Ξ₁ | +L-comm Ξ₁ Ξ₂  
--- ... | _ | _ | refl = refl 
-
--- +ₑ-is-commutative : ∀ {n} {Ξ₁ Ξ₂ Ξ : MultEnvL n} -> 
---                     Ξ₁ +ₑ Ξ₂ is Ξ -> Ξ₂ +ₑ Ξ₁ is Ξ 
--- +ₑ-is-commutative {Ξ₁ = Ξ₁} eq = subst (λ x -> x ≡ just _) (+L-comm Ξ₁ _) eq
--- -- +ₑ-is-commutative []+[]is[] = []+[]is[]
--- -- +ₑ-is-commutative (n+n-step w) = n+n-step (+ₑ-is-commutative w)
--- -- +ₑ-is-commutative (n+j-step w) = j+n-step (+ₑ-is-commutative w)
--- -- +ₑ-is-commutative (j+n-step w) = n+j-step (+ₑ-is-commutative w) 
-
-
-
-
--- Ξ+ₑreplicate-nothing-is-Ξ : ∀ {n} (Ξ : MultEnvL n) -> Ξ +ₑ (Data.Vec.replicate nothing) is Ξ 
--- Ξ+ₑreplicate-nothing-is-Ξ [] = refl
--- Ξ+ₑreplicate-nothing-is-Ξ (just x ∷ Ξ) with Ξ +L Data.Vec.replicate nothing | Ξ+ₑreplicate-nothing-is-Ξ Ξ
--- ... | _ | refl = refl
--- Ξ+ₑreplicate-nothing-is-Ξ (nothing ∷ Ξ) with Ξ +L Data.Vec.replicate nothing | Ξ+ₑreplicate-nothing-is-Ξ Ξ
--- ... | _ | refl = refl 
--- -- Ξ+ₑreplicate-nothing-is-Ξ {0F} {[]} = []+[]is[]
--- -- Ξ+ₑreplicate-nothing-is-Ξ {suc n} {just one ∷ Ξ} = j+n-step Ξ+ₑreplicate-nothing-is-Ξ
--- -- Ξ+ₑreplicate-nothing-is-Ξ {suc n} {nothing ∷ Ξ}  = n+n-step Ξ+ₑreplicate-nothing-is-Ξ 
-
--- replicate-nothing+ₑΞ-is-Ξ : ∀ {n} (Ξ : MultEnvL n) -> Data.Vec.replicate nothing +ₑ Ξ is Ξ 
--- replicate-nothing+ₑΞ-is-Ξ Ξ = +ₑ-is-commutative {Ξ₁ = Ξ} (Ξ+ₑreplicate-nothing-is-Ξ Ξ)
-
--- +ₑ-partial-func : ∀ {n} {Ξ₁ Ξ₂ Ξ' Ξ''} -> 
---                   Ξ₁ +ₑ Ξ₂ is Ξ' -> Ξ₁ +ₑ Ξ₂ is Ξ' 
-
--- +ₑ-preserves-all-nothing : ∀ {n} {Ξ₁ Ξ₂ Ξ : MultEnvL n} -> 
---                            Ξ₁ +ₑ Ξ₂ is Ξ -> all-nothing Ξ₁ -> all-nothing Ξ₂ -> all-nothing Ξ
--- +ₑ-preserves-all-nothing {Ξ₁ = []} {[]} {[]} eq all₁ all₂ = []
--- +ₑ-preserves-all-nothing {Ξ₁ = .nothing ∷ Ξ₁} {.nothing ∷ Ξ₂} eq (refl ∷ all₁) (refl ∷ all₂) 
---   with Ξ₁ +L Ξ₂ | inspect (λ x -> x +L Ξ₂) Ξ₁
--- +ₑ-preserves-all-nothing {_} {.nothing ∷ Ξ₁} {.nothing ∷ Ξ₂} () (refl ∷ all₁) (refl ∷ all₂) | nothing | [ eq' ] 
--- +ₑ-preserves-all-nothing {_} {.nothing ∷ Ξ₁} {.nothing ∷ Ξ₂} refl (refl ∷ all₁) (refl ∷ all₂) | just Ξ | [ eq' ] = refl ∷ (+ₑ-preserves-all-nothing eq' all₁ all₂) 
--- -- +ₑ-preserves-all-nothing []+[]is[] all-nothing-Ξ₁ all-nothing-Ξ₂ = []
--- -- +ₑ-preserves-all-nothing (n+n-step Ξ₁+Ξ₂-is-Ξ) (px ∷ all-nothing-Ξ₁) (px₁ ∷ all-nothing-Ξ₂) =
--- --   refl ∷
--- --     +ₑ-preserves-all-nothing Ξ₁+Ξ₂-is-Ξ all-nothing-Ξ₁ all-nothing-Ξ₂
--- -- +ₑ-preserves-all-nothing (n+j-step Ξ₁+Ξ₂-is-Ξ) all-nothing-Ξ₁ (() ∷ all-nothing-Ξ₂)
--- -- +ₑ-preserves-all-nothing (j+n-step Ξ₁+Ξ₂-is-Ξ) (() ∷ all-nothing-Ξ₁) all-nothing-Ξ₂ 
-
+-- Variables, or de Bruijn indices
 data _∋_ : ∀ TyEnv  -> Ty zero -> Set where
   vz : ∀ {Γ : TyEnv} {a : Ty zero} -> (a ∷ Γ) ∋ a 
   vs : ∀ {Γ : TyEnv} {a b : Ty zero} -> Γ ∋ a -> (b ∷ Γ) ∋ a
 
+-- 'discardable' means that a corresponding variable need not be used. 
 data discardable : Multiplicity₀ -> Set where 
   omega : discardable omega
   zero  : discardable zero
@@ -478,13 +403,14 @@ omega×ₘ-discardable (zero ∷ Δ)  = zero ∷ omega×ₘ-discardable Δ
 omega×ₘ-discardable (one ∷ Δ)   = omega ∷ omega×ₘ-discardable Δ
 omega×ₘ-discardable (omega ∷ Δ) = omega ∷ omega×ₘ-discardable Δ 
 
+-- 'usable' means that a corresponding variable can be used. 
 data usable : Multiplicity₀ -> Set where
   omega : usable omega
   one   : usable one 
 
+-- varOk means that the use of variable x in Γ is compatible with Δ; that is, 
+-- x is usable in Δ and other variables must be discardable in Δ.
 data varOk : (Γ : TyEnv) {a : Ty zero} -> Γ ∋ a -> (Δ : MultEnv (length Γ)) -> Set where
-  -- var-there-ω : ∀ {Γ : TyEnv} {a b} {x : Γ ∋ a} {Δ} -> varOk x Δ -> varOk (vs {b = b} x) (just omega ∷ Δ)
-  -- var-there-0  : ∀ {Γ : TyEnv} {a b} {x : Γ ∋ a} {Δ} -> varOk x Δ -> varOk (vs {b = b} x) (nothing    ∷ Δ)
   there : 
     ∀ {Γ : TyEnv} {m a b} {x : Γ ∋ a} {Δ} -> 
     (d : discardable m) -> 
@@ -496,6 +422,8 @@ data varOk : (Γ : TyEnv) {a : Ty zero} -> Γ ∋ a -> (Δ : MultEnv (length Γ)
       (ad : All discardable Δ) -> 
       varOk (a ∷ Γ) vz (m ∷ Δ) 
 
+-- varOk● is similar to varOk but is for invertible variables. The definition is simplified as 
+-- we assume Ξ cannot contain omega. 
 data varOk● : (Θ : TyEnv) {a : Ty zero} -> Θ ∋ a -> (Ξ : MultEnv (length Θ)) -> Set where
   there :
     ∀ {Θ : TyEnv} {a b} {x : Θ ∋ a} {Ξ} -> 
@@ -507,13 +435,7 @@ data varOk● : (Θ : TyEnv) {a : Ty zero} -> Θ ∋ a -> (Ξ : MultEnv (length 
     (ad : all-zero Ξ) -> 
     varOk● (a ∷ Θ) vz (one ∷ Ξ) 
 
-
--- data varOk● : ∀ {Θ : TyEnv} {a} -> Θ ∋ a -> (Ξ : MultEnvL (length Θ)) -> Set where
---   var-there-0 : ∀ {Θ} {a b} {x : Θ ∋ a} {Ξ} -> varOk● x Ξ -> varOk● (vs {b = b} x) (nothing ∷ Ξ)
---   var-here    : ∀ {Θ} {a} {Ξ} -> all-nothing Ξ -> varOk● (vz {Γ = Θ} {a = a})  (just one ∷ Ξ)
-
-
-
+-- Now, we are ready to define the intrinsically-typed syntax of Sparcl. 
 data Term : ∀ (Γ : TyEnv) -> MultEnv (length Γ) -> (Θ : TyEnv) -> MultEnv (length Θ) -> Ty zero -> Set where 
   var  : 
     ∀ {Γ Δ Θ A} -> 
@@ -654,17 +576,24 @@ data Term : ∀ (Γ : TyEnv) -> MultEnv (length Γ) -> (Θ : TyEnv) -> MultEnv (
     -> Term Γ Δ₂ Θ Ξ₂ B 
     -> Term Γ (Δ₁ +ₘ omega ×ₘ Δ₂) Θ (Ξ₁ +ₘ omega ×ₘ Ξ₂) A
 
-  -- fwd : 
-  --   ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
-  --   Term Γ Δ₁ Θ Ξ₁ (A ● ⊸ B ●) -> 
-  --   Term Γ Δ₂ Θ Ξ₂ A -> 
-  --   Term Γ (omega ×ₘ Δ₁ +ₘ omega ×ₘ Δ₂) Θ (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂) B  
+-- fwd and bwd are obtained as derived constructs. 
+fwd : 
+  ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
+  Term Γ Δ₁ Θ Ξ₁ (A ● ⊸ B ●) -> 
+  Term Γ Δ₂ Θ Ξ₂ A -> 
+  Term Γ (omega ×ₘ Δ₁ +ₘ omega ×ₘ Δ₂) Θ (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂) B  
+fwd e1 e2 = fapp (unlift e1) e2
 
-  -- bwd : 
-  --   ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
-  --   Term Γ Δ₁ Θ Ξ₁ (A ● ⊸ B ●) -> 
-  --   Term Γ Δ₂ Θ Ξ₂ B -> 
-  --   Term Γ (omega ×ₘ Δ₁ +ₘ omega ×ₘ Δ₂) Θ (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂) A
+bwd : 
+  ∀ {Γ Δ₁ Δ₂ Θ Ξ₁ Ξ₂ A B} -> 
+  Term Γ Δ₁ Θ Ξ₁ (A ● ⊸ B ●) -> 
+  Term Γ Δ₂ Θ Ξ₂ B -> 
+  Term Γ (omega ×ₘ Δ₁ +ₘ omega ×ₘ Δ₂) Θ (omega ×ₘ Ξ₁ +ₘ omega ×ₘ Ξ₂) A
+bwd e1 e2 = bapp (unlift e1) e2 
+
+
+-- compatΘ Θ Ξ Θ' Ξ' asserts that (Θ , Ξ) and (Θ' , Ξ')
+-- differ only in variables with multiplicity zero.
 
 data compatΘ : (Θ : TyEnv)  (Ξ : MultEnv (length Θ)) 
                 (Θ' : TyEnv) (Ξ' : MultEnv (length Θ')) -> Set where 
@@ -688,6 +617,7 @@ data compatΘ : (Θ : TyEnv)  (Ξ : MultEnv (length Θ))
     compatΘ (A ∷ Θ) (m ∷ Ξ) (A ∷ Θ') (m ∷ Ξ')
 
   
+-- Some useful examples of compatΘ
 
 ext-id : ∀ {Θ Ξ} ->  compatΘ Θ Ξ Θ Ξ
 ext-id {[]} {[]}         = compat-[]
@@ -704,6 +634,8 @@ extendΘ {_ ∷ Θ} = compat-ext-here extendΘ
 adjust∅Θ : ∀ {Θ Θ'} -> compatΘ Θ ∅ Θ' ∅ 
 adjust∅Θ {[]} = extendΘ
 adjust∅Θ {_ ∷ Θ} = compat-reduce-here adjust∅Θ 
+
+-- Some properties on compatΘ
 
 compatΘ-∅ : ∀ {Θ Θ' Ξ'} -> compatΘ Θ ∅ Θ' Ξ' -> Ξ' ≡ ∅ 
 compatΘ-∅ compat-[] = refl 
@@ -778,14 +710,6 @@ compatΘ-split {x ∷ Θ} {omega ∷ Ξ₁} {x₂ ∷ Ξ₂} {.x ∷ Θ'} {.omeg
 ... | Ξ₁' ,  Ξ₂' , ext₁ , ext₂ , refl = 
   omega ∷ Ξ₁' , x₂ ∷ Ξ₂' , compat-skip ext₁ , compat-skip ext₂ , refl
 
--- compatΘ-split {[]} {[]} {[]} compat-[] = ∅ , ∅ , compat-[] , compat-[] , refl
--- compatΘ-split {[]} {[]} {[]} (compat-ext-here ext) with compatΘ-split ext 
--- ... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = zero ∷ Ξ₁' , zero ∷ Ξ₂' , compat-ext-here ext₁ , compat-ext-here ext₂ ,  refl
--- compatΘ-split {x ∷ Θ} {x₁ ∷ Ξ₁} {x₂ ∷ Ξ₂} (compat-ext-here ext) with compatΘ-split {x ∷ Θ} {x₁ ∷ Ξ₁} {x₂ ∷ Ξ₂} ext
--- ... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = zero ∷ Ξ₁' , zero ∷ Ξ₂' , compat-ext-here ext₁ , compat-ext-here ext₂ ,  refl  
--- compatΘ-split {x ∷ Θ} {x₁ ∷ Ξ₁} {x₂ ∷ Ξ₂} (compat-skip ext) with compatΘ-split ext 
--- ... | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = x₁ ∷ Ξ₁' , x₂ ∷ Ξ₂' , compat-skip ext₁ , compat-skip ext₂ , refl 
-
 compatΘ-preserves-all-no-omega : 
   ∀ {Θ Ξ Θ' Ξ'} -> 
   compatΘ Θ Ξ Θ' Ξ' -> all-no-omega Ξ -> all-no-omega Ξ' 
@@ -793,9 +717,6 @@ compatΘ-preserves-all-no-omega compat-[] ano = ano
 compatΘ-preserves-all-no-omega (compat-ext-here ext) ano = zero ∷ compatΘ-preserves-all-no-omega ext ano
 compatΘ-preserves-all-no-omega (compat-reduce-here ext) (px ∷ ano) = compatΘ-preserves-all-no-omega ext ano
 compatΘ-preserves-all-no-omega (compat-skip ext) (px ∷ ano) = px ∷ compatΘ-preserves-all-no-omega ext ano 
--- compatΘ-preserves-all-no-omega compat-[] ano = ano
--- compatΘ-preserves-all-no-omega (compat-ext-here ext) ano = zero ∷ compatΘ-preserves-all-no-omega ext ano
--- compatΘ-preserves-all-no-omega (compat-skip ext) (px ∷ ano) = px ∷ compatΘ-preserves-all-no-omega ext ano 
 
 compatΘ-preserves-all-zero :
   ∀ {Θ Ξ Θ' Ξ'} -> 
@@ -804,16 +725,6 @@ compatΘ-preserves-all-zero compat-[] az = az
 compatΘ-preserves-all-zero (compat-ext-here ext) az = refl ∷ compatΘ-preserves-all-zero ext az
 compatΘ-preserves-all-zero (compat-reduce-here ext) (px ∷ az) = compatΘ-preserves-all-zero ext az
 compatΘ-preserves-all-zero (compat-skip ext) (px ∷ az) = px ∷ compatΘ-preserves-all-zero ext az 
--- compatΘ-preserves-all-zero compat-[] az = az
--- compatΘ-preserves-all-zero (compat-ext-here ext) az = refl ∷ compatΘ-preserves-all-zero ext az
--- compatΘ-preserves-all-zero (compat-skip ext) (px ∷ az) = px ∷ compatΘ-preserves-all-zero ext az 
-
--- compatΘ-var : 
---   ∀ { Θ Ξ Θ' Ξ' A } -> 
---   compatΘ Θ Ξ Θ' Ξ' -> Θ ∋ A -> Θ' ∋ A 
--- compatΘ-var (compat-ext-here ext) x = vs (compatΘ-var ext x)
--- compatΘ-var (compat-skip ext) vz = vz
--- compatΘ-var (compat-skip ext) (vs x) = vs (compatΘ-var ext x) 
 
 compatΘ-preserves-varOk● : 
   ∀ {Θ Ξ Θ' Ξ' A} {x : Θ ∋ A} -> 
@@ -825,12 +736,6 @@ compatΘ-preserves-varOk● (compat-skip ext) (there ok) with compatΘ-preserves
 ... | x' , ok' = vs x' , there ok'
 compatΘ-preserves-varOk● (compat-skip ext) (here ad) = vz , here (compatΘ-preserves-all-zero ext ad) 
 
--- compatΘ-preserves-varOk● {x = x} (compat-ext-here ext) ok with compatΘ-preserves-varOk● ext ok 
--- ... | x' , ok' = vs x' , there ok'
--- compatΘ-preserves-varOk● (compat-skip ext) (there ok) with compatΘ-preserves-varOk● ext ok 
--- ... | x' , ok' = vs x' , there ok'
--- compatΘ-preserves-varOk● (compat-skip ext) (here ad) = vz , here (compatΘ-preserves-all-zero ext ad) 
- 
 
 compatΘ-×ₘ : 
   ∀ {Θ m Ξ Θ' Ξ'} -> 
@@ -880,17 +785,10 @@ compatΘ-×ₘ {_ ∷ Θ} {omega} {omega ∷ Ξ} {_ ∷ Θ'} {.omega ∷ Ξ'} (c
   with compatΘ-×ₘ ext 
 ... | Ξ'' , ext' , refl = omega ∷ Ξ'' , compat-skip ext' , refl
 
--- compatΘ-×ₘ {[]} {m} {[]} compat-[] = [] , compat-[] , refl
--- compatΘ-×ₘ {[]} {m} {[]} (compat-ext-here ext) with compatΘ-×ₘ {m = m} ext 
--- ... | Ξ' , ext' , refl  = 
---       zero ∷ Ξ' , compat-ext-here ext' , cong (_∷ m ×ₘ Ξ') (mul₀-m-zero _) 
--- compatΘ-×ₘ {_ ∷ Θ} {m} {n ∷ Ξ} (compat-ext-here ext) with compatΘ-×ₘ {m = m} ext 
--- ... | Ξ' , ext' , refl  = 
---       zero ∷ Ξ' , compat-ext-here ext' , cong (_∷ m ×ₘ Ξ') (mul₀-m-zero _)  
--- compatΘ-×ₘ {_ ∷ Θ} {m} {n ∷ Ξ} (compat-skip ext) with compatΘ-×ₘ {m = m} ext 
--- ... | Ξ' , ext' , refl  = 
---     n ∷ Ξ' , compat-skip ext' , refl 
 
+-- Well-typed terms can also be typed compatible environments. 
+-- With a historical reason, this property is called 'weakenΘ-term' as 
+-- `compatΘ` was initially used only for adding variables with multiplicity zero. 
 
 weakenΘ-term : ∀ {Γ Δ Θ Ξ Θ' Ξ' A} -> 
                   compatΘ Θ Ξ Θ' Ξ' -> 
@@ -958,16 +856,4 @@ weakenΘ-term ext (bapp t₁ t₂) =
       (_ , ext₂' , refl) -> bapp (weakenΘ-term ext₁ t₁) (weakenΘ-term ext₂' t₂)
     }
   }
-  
-
--- weakenΘ-term ext (fwd t₁ t₂) 
---   with compatΘ-split ext
--- ... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl 
---   with compatΘ-×ₘ ext₁ | compatΘ-×ₘ ext₂ 
--- ... | Ξ₁'' , ext₁' , refl | Ξ₂'' , ext₂' , refl = fwd (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂' t₂) 
--- weakenΘ-term ext (bwd t₁ t₂) 
---   with compatΘ-split ext
--- ... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl   
---   with compatΘ-×ₘ ext₁ | compatΘ-×ₘ ext₂ 
--- ... | Ξ₁'' , ext₁' , refl | Ξ₂'' , ext₂' , refl = bwd (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂' t₂)  
   
