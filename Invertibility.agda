@@ -26,6 +26,8 @@ open import Data.Empty
 open import PInj
 open _⊢F_⇔_
 
+-- m ⟶ v states that computation of m terminates in v. We prepare this 
+-- for structural induction on the derivation. 
 data _⟶_ : {A : Set} (m : DELAY A ∞) (v : A) -> Set₁ where 
   now⟶   : ∀ {A : Set} (v : A) -> Now v ⟶ v
   later⟶ : ∀ {A : Set} {x : Thunk (DELAY A) ∞} -> ∀ (v : A) 
@@ -37,10 +39,20 @@ data _⟶_ : {A : Set} (m : DELAY A ∞) (v : A) -> Set₁ where
     -> f u ⟶ v 
     -> Bind m f ⟶ v 
 
+-- We will check that m ⟶ v conincides with the termination of thawed
+-- computation (d : runD m ⇓) that results in v (that is, extract d ≡
+-- v).
+
 module _ where
   open import Data.Nat 
   open import Data.Nat.Properties
   private
+    -- It is unclear that we can prove the statement ⇓-⟶ by the
+    -- indunction on m⇓, as it is not immediately clear that m⇓ does
+    -- not involve infinite number of binds. So, we based ourselves on
+    -- the number of 'later' and proves that the descruction of "bind"
+    -- cannot increase the number ('lemma', below).
+
     -- steps 
     len : ∀ {A : Set} {m : Delay A ∞} -> m ⇓ -> ℕ 
     len (now _)   = ℕ.zero
@@ -63,9 +75,11 @@ module _ where
     ... | m⟶u with aux n (f (extract m⇓)) fu⇓ (≤-trans rel₂ ctr) 
     ... | fu⟶v rewrite eq = bind⟶ {m = m} {f} (extract m⇓) (extract fu⇓) m⟶u fu⟶v
 
+
   ⇓-⟶ : ∀ {A : Set} (m : DELAY A ∞)  -> (m⇓ : runD m ⇓) -> m ⟶ extract m⇓ 
   ⇓-⟶ m m⇓ = aux (len m⇓) m m⇓ (≤-refl) 
 
+-- In contrast, this direction is straightforward. 
 ⟶-⇓ : ∀ {A : Set} (m : DELAY A ∞) (v : A)
         -> m ⟶ v -> Σ[ m⇓ ∈ runD m ⇓ ] (extract m⇓ ≡ v) 
 ⟶-⇓ .(Now v) v (now⟶ .v) = now v , refl
@@ -82,11 +96,16 @@ module _ where
     lemma (now a) fu⇓ = refl
     lemma {f = f} (later m⇓) fu⇓ rewrite lemma {f = f} m⇓ fu⇓ = refl
 
+-- Never does not terminate. 
 ¬Never⟶ : ∀ {A : Set} {v : A} -> ¬ (Never ⟶ v)
 ¬Never⟶ (later⟶ _ x) = ¬Never⟶ x
 
+-- A useful variant of now⟶ 
 now⟶≡ : ∀ {A : Set} {v v' : A} -> v' ≡ v -> Now v' ⟶ v 
 now⟶≡ refl = now⟶ _
+
+-- Several properties on value environments (for forward and backward
+-- evaluations) and manipulations on them.
 
 RValEnv-∅-canon : ∀ {Θ} (ρ : RValEnv Θ ∅) -> ρ ≡ emptyRValEnv
 RValEnv-∅-canon {[]} [] = refl
@@ -126,6 +145,8 @@ merge-split {x ∷ Θ} {zero ∷ Ξ₁} {one ∷ Ξ₂} (px ∷ ano) (skip ρ₁
 merge-split {x ∷ Θ} {one ∷ Ξ₁} {zero ∷ Ξ₂} (_ ∷ ano) (v ∷ ρ₁) (skip ρ₂) rewrite merge-split ano ρ₁ ρ₂  = refl
 merge-split {x ∷ Θ} {one ∷ Ξ₁} {one ∷ Ξ₂} (() ∷ ano) ρ₁ ρ₂
   
+
+-- Round-trip properties 
 
 forward-backward : 
   ∀ {Θ Ξ A}

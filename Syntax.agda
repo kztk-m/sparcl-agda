@@ -33,12 +33,12 @@ M→M₀ omega = omega
 
 -- Since it is cumbersome to handle type and value constructors, we handle them differently in 
 -- this implementation. Superficially, we have (multiplicative) product and (additive) sum types, and
--- iso-recursive types. To express non-linear constructors, we prepare |Un|. 
+-- iso-recursive types. To express non-linear constructors, we prepare Many. 
 data Ty : ℕ -> Set where 
   _⊕_    : ∀ {n} -> Ty n -> Ty n -> Ty n 
   tunit  : ∀ {n} -> Ty n 
   _⊗_   : ∀ {n} -> Ty n -> Ty n -> Ty n 
-  Un     : ∀ {n} -> Multiplicity -> Ty n -> Ty n 
+  Many   : ∀ {n} -> Multiplicity -> Ty n -> Ty n 
   _#_~>_ : ∀ {n} -> Ty n -> Multiplicity -> Ty n -> Ty n 
   _●     : ∀ {n} -> Ty n -> Ty n 
   μ_    : ∀ {n} -> Ty (suc n) -> Ty n 
@@ -83,7 +83,7 @@ module _ where
   weaken r (t ⊕ t₁) = weaken r t ⊕ weaken r t₁
   weaken r tunit =  tunit 
   weaken r (t ⊗ t₁) = weaken r t ⊗ weaken r t₁
-  weaken r (Un x t) = Un x (weaken r t)
+  weaken r (Many x t) = Many x (weaken r t)
   weaken r (t # x ~> t₁) = weaken r t # x ~> weaken r t₁
   weaken r (t ●) = weaken r t ●
   weaken r (μ t) = μ (weaken (s≤s r) t)
@@ -94,7 +94,7 @@ module _ where
   substTyGen (s₁ ⊕ s₂) t = substTyGen s₁ t ⊕ substTyGen s₂ t 
   substTyGen tunit t = tunit 
   substTyGen (s₁ ⊗ s₂) t = substTyGen s₁ t ⊗ substTyGen s₂ t 
-  substTyGen (Un x s) t = Un x (substTyGen s t)
+  substTyGen (Many x s) t = Many x (substTyGen s t)
   substTyGen (s # x ~> s₁) t = substTyGen s t # x ~> substTyGen s₁ t
   substTyGen (s ●) t = (substTyGen s t) ●
   substTyGen {m} (μ s) t = μ (substTyGen {m = suc m} s (weaken (n≤1+n _) t))
@@ -132,6 +132,10 @@ MultEnv n = Vec Multiplicity₀ n
 
 -----------------------------------------------------------------------------
 -- Operations and properties for multiplicities
+
+mul : Multiplicity -> Multiplicity -> Multiplicity 
+mul one   y = y 
+mul omega y = omega 
 
 mul₀ : Multiplicity₀ -> Multiplicity₀ -> Multiplicity₀
 mul₀ zero y = zero
@@ -279,6 +283,18 @@ one×ₘ (x ∷ Δ) = cong (_∷_ x) (one×ₘ Δ)
 ×ₘ∅ {suc n} one   = cong (_∷_ zero) (×ₘ∅ one)
 ×ₘ∅ {suc n} omega = cong (_∷_ zero) (×ₘ∅ omega)
 
+omega×ₘm×ₘ-omega×ₘ : ∀ {n} (m : Multiplicity) (Δ : MultEnv n) -> omega ×ₘ m ×ₘ Δ ≡ omega ×ₘ Δ 
+omega×ₘm×ₘ-omega×ₘ {zero}   m [] = refl 
+omega×ₘm×ₘ-omega×ₘ {suc n} m (zero ∷ Δ) rewrite mul₀-m-zero (M→M₀ m) = cong (zero ∷_) (omega×ₘm×ₘ-omega×ₘ {n} m Δ)
+omega×ₘm×ₘ-omega×ₘ {suc n} one (one ∷ Δ)   = cong (omega ∷_) (omega×ₘm×ₘ-omega×ₘ {n} one Δ)
+omega×ₘm×ₘ-omega×ₘ {suc n} omega (one ∷ Δ) = cong (omega ∷_) (omega×ₘm×ₘ-omega×ₘ {n} omega Δ)
+omega×ₘm×ₘ-omega×ₘ {suc n} one (omega ∷ Δ) = cong (omega ∷_) (omega×ₘm×ₘ-omega×ₘ {n} one Δ)
+omega×ₘm×ₘ-omega×ₘ {suc n} omega (omega ∷ Δ) = cong (omega ∷_) (omega×ₘm×ₘ-omega×ₘ {n} omega Δ)
+
+mul-×ₘ : ∀ {n} m₁ m₂ (Δ : MultEnv n)  -> mul m₁ m₂ ×ₘ Δ ≡ m₁ ×ₘ (m₂ ×ₘ Δ)
+mul-×ₘ one m₂ Δ = sym (one×ₘ _)
+mul-×ₘ omega m₂ Δ = sym (omega×ₘm×ₘ-omega×ₘ m₂ Δ)
+
 
 module _ where
   open import Data.Vec.Properties 
@@ -299,6 +315,7 @@ module _ where
   ∅+ₘ∅-inv (x₁ ∷ Δ₁) (x₂ ∷ Δ₂) eq with ∷-injective eq 
   ... | eq₁ , eq₂ with add₀-0-0-inv x₁ x₂ eq₁ | ∅+ₘ∅-inv Δ₁ Δ₂ eq₂ 
   ... | refl , refl | refl , refl = refl , refl 
+
 
 ×ₘ-dist : ∀ {n} m (Δ₁ Δ₂ : MultEnv n) -> 
           (m ×ₘ (Δ₁ +ₘ Δ₂)) ≡ (m ×ₘ Δ₁) +ₘ (m ×ₘ Δ₂)
@@ -478,6 +495,18 @@ data Term : ∀ (Γ : TyEnv) -> MultEnv (length Γ) -> (Θ : TyEnv) -> MultEnv (
     Term (A ∷ B ∷ Γ) (M→M₀ m ∷ M→M₀ m ∷ Δ) Θ Ξ C -> 
     Term Γ (m ×ₘ Δ₀ +ₘ Δ) Θ (m ×ₘ Ξ₀ +ₘ Ξ) C
 
+  many : 
+    ∀ {Γ Δ Θ Ξ A} -> 
+    (m : Multiplicity) -> 
+    Term Γ Δ Θ Ξ A -> 
+    Term Γ (m ×ₘ Δ) Θ (m ×ₘ Ξ) (Many m A) 
+
+  unmany : 
+    ∀ {Γ Δ₀ Δ Θ Ξ₀ Ξ m₀ A B} -> 
+    (m : Multiplicity) -> 
+    Term Γ Δ₀ Θ Ξ₀ (Many m₀ A) -> 
+    Term (A ∷ Γ) (M→M₀ (mul m m₀) ∷ Δ) Θ Ξ B -> 
+    Term Γ (m ×ₘ Δ₀ +ₘ Δ) Θ (m ×ₘ Ξ₀ +ₘ Ξ) B 
   
   inl  : 
     ∀ {Γ Δ Θ Ξ} {A B} -> 
@@ -592,7 +621,7 @@ bwd :
 bwd e1 e2 = bapp (unlift e1) e2 
 
 
--- compatΘ Θ Ξ Θ' Ξ' asserts that (Θ , Ξ) and (Θ' , Ξ')
+-- compatΘ Θ Ξ Θ' Ξ' asserts that environments ((Θ , Ξ) and (Θ' , Ξ'))
 -- differ only in variables with multiplicity zero.
 
 data compatΘ : (Θ : TyEnv)  (Ξ : MultEnv (length Θ)) 
@@ -810,6 +839,14 @@ weakenΘ-term ext (pair t₁ t₂) with compatΘ-split ext
 weakenΘ-term ext (letpair m t₁ t₂) with compatΘ-split ext  
 ... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl with compatΘ-×ₘ ext₁ 
 ... | Ξ₁'' , ext₁' , refl = letpair m (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂ t₂)
+
+weakenΘ-term ext (many m t) with compatΘ-×ₘ ext 
+... | Ξ'' , ext' , refl = many m (weakenΘ-term ext' t) 
+
+weakenΘ-term ext (unmany m' t₁ t₂) with compatΘ-split ext  
+... | Ξ₁'  , Ξ₂' , ext₁ , ext₂ , refl with compatΘ-×ₘ ext₁ 
+... | Ξ₁'' , ext₁' , refl = unmany m' (weakenΘ-term ext₁' t₁) (weakenΘ-term ext₂ t₂) 
+
 weakenΘ-term ext (inl t) = inl (weakenΘ-term ext t)
 weakenΘ-term ext (inr t) = inr (weakenΘ-term ext t)
 weakenΘ-term ext (case m t₀ t₁ t₂) with compatΘ-split ext  

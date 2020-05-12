@@ -14,9 +14,12 @@ open import Function using () renaming (case_of_ to case*_of_)
 open import Size
 open import Relation.Binary.PropositionalEquality
 
+-- Sets indexed by invertible environments (that is, Θ and Ξ). This
+-- actually is our semantic domain.
 Dom : ∀ ℓ -> Set (lsuc ℓ)
 Dom ℓ = (Θ : TyEnv) -> (Ξ : MultEnv (length Θ)) -> Set ℓ 
 
+-- A pairing operator, inspired by the Day convolution in category theory. 
 data _⊛_ {ℓ : Level} 
          (F : Dom ℓ)
          (G : Dom ℓ) 
@@ -24,24 +27,42 @@ data _⊛_ {ℓ : Level}
      tup : ∀ Ξ₁ Ξ₂ -> (spΞ : Ξ₁ +ₘ Ξ₂ ≡ Ξ) -> 
            (fst : F Θ Ξ₁) -> (snd : G Θ Ξ₂) -> (F ⊛ G) Θ Ξ
 
+-- mult is used for representing entries in value environments that are aware of multiplicities.  
 data mult {ℓ : Level} (F : Dom ℓ) : (m : Multiplicity₀) -> Dom ℓ where
+
+  -- An entry corresponds to multiplicity zero, i.e., nothing. 
   mult-zero : 
     ∀ {Θ Ξ} -> 
     (eq : Ξ ≡ ∅) -> 
     mult F zero Θ Ξ
 
+  -- An entry corresponds to multiplicity one, a value must be used linearly. 
   mult-one : 
     ∀ {Θ Ξ} -> 
     (v : F Θ Ξ) -> mult F one Θ Ξ
+
+  -- An entry corresponds to multiplicity omega; such values must be indexed by the empty invertible environment. 
   mult-omega : 
     ∀ {Θ Ξ} -> 
     (v : F Θ ∅) -> (eq : Ξ ≡ ∅) -> mult F omega Θ Ξ
 
-data Residual (Θ : TyEnv) : MultEnv (length Θ) -> Ty zero -> {i : Size} -> Set 
+-- Values (Value), residuals (Residual) and value environments
+-- (ValEnv) are mutually defined and thus the first comes is their
+-- types. 
+-- 
+-- The sized types are used for termination checking with the presence
+-- of --without-K, which weakens termination analysis for
+-- with-abstractions that the original definitions used to have.
+
 data Value (Θ : TyEnv) : MultEnv (length Θ) -> Ty zero -> {i : Size} -> Set 
+data Residual (Θ : TyEnv) : MultEnv (length Θ) -> Ty zero -> {i : Size} -> Set 
 ValEnv : 
   (Γ : TyEnv) -> (Δ : MultEnv (length Γ)) -> {i : Size} -> 
   (Θ : TyEnv) -> MultEnv (length Θ) -> Set
+
+-- ValEnv Γ Δ : Dom 0 represents value environments conforms to Γ Δ. 
+-- Intuitively, (Θ , Ξ) of ValEnv Γ Δ Θ Ξ represents typed resources contained in 
+-- value environments. 
 
 ValEnv [] Δ {i}            = λ Θ Ξ -> Ξ ≡ ∅ 
 ValEnv (A ∷ Γ) (m ∷ Δ) {i} = 
@@ -50,7 +71,7 @@ ValEnv (A ∷ Γ) (m ∷ Δ) {i} =
     V : Ty zero -> Dom 0ℓ 
     V A Θ Ξ = Value Θ Ξ A {i} 
   
-
+-- Values 
 data Value Θ where 
   clo :
     ∀ {Ξ Ξ' Γ' Δ' A B Ξₜ i} -> 
@@ -71,6 +92,13 @@ data Value Θ where
     Value Θ Ξ₁ A {i} ->
     Value Θ Ξ₂ B {i} ->
     Value Θ Ξ (A ⊗ B) {↑ i} 
+
+  many : 
+    ∀ {Ξ Ξ₀ A i} -> 
+    (m : Multiplicity) -> 
+    (spΞ : m ×ₘ Ξ₀ ≡ Ξ) -> 
+    Value Θ Ξ₀ A {i} -> 
+    Value Θ Ξ (Many m A) {↑ i}
 
   inl  : 
     ∀ {Ξ} {A B i} -> 
@@ -98,6 +126,7 @@ data Value Θ where
     Residual Θ Ξ (A ●) {i} -> 
     Value Θ Ξ (A ●) {↑ i} 
 
+-- Residuals 
 data Residual Θ where 
   unit● : 
     ∀ {i} ->
@@ -154,6 +183,8 @@ data Residual Θ where
 
 open ≡-Reasoning
 
+-- A property on value environments that says discardable value environments cannot contain any resources. 
+
 discardable-has-no-resources : ∀ {Γ Δ Θ Ξ} -> ValEnv Γ Δ Θ Ξ -> All discardable Δ -> Ξ ≡ ∅ 
 discardable-has-no-resources {[]} {Δ} θ ad = θ
 discardable-has-no-resources {A ∷ Γ} {.omega ∷ Δ} (tup .∅ Ξ₂ spΞ (mult-omega v refl) snd) (omega ∷ ad) = 
@@ -177,6 +208,11 @@ discardable-has-no-resources {A ∷ Γ} {.zero ∷ Δ} (tup .∅ Ξ₂ spΞ (mul
       ∅ 
      ∎    
 
+-- Looking up variables in an environment. Unlike the usual variable looking-up functions, this version
+-- takes varOk Γ x Δ instead of x to ensure that the variable can be looked up. Notice 
+-- for example that we cannot look up variables with multiplicity zero. Also, the fact that the 
+-- return type is Value Θ Ξ A means that the value environment cannot contain other resources. 
+
 lookupVar : ∀ {Γ Δ Θ Ξ A} {x : Γ ∋ A} -> ValEnv Γ Δ Θ Ξ -> varOk Γ x Δ -> Value Θ Ξ A 
 lookupVar (tup .(∅) Ξ₂ spΞ (mult-omega v refl) snd) (there omega ok) with (trans (sym (∅-lid _)) spΞ)
 ... | refl = lookupVar snd ok
@@ -187,6 +223,9 @@ lookupVar {Γ = A ∷ Γ} {Δ = m ∷ Δ} (tup Ξ₁ Ξ₂ spΞ fst snd) (here u
 lookupVar {A ∷ Γ} {.omega ∷ Δ} (tup .∅ .∅ spΞ (mult-omega v refl) snd) (here omega ad) | refl | refl = v
 lookupVar {A ∷ Γ} {.one ∷ Δ} (tup Ξ₁ .∅ spΞ (mult-one v) snd) (here one ad) | refl | refl = v 
 
+
+-- separateEnv separates value environments according to separation of
+-- (unidirectional) type environments.
 
 separateEnv : ∀ {Γ Θ Ξ} -> ∀ Δ₁ Δ₂ -> 
               ValEnv Γ (Δ₁ +ₘ Δ₂) Θ Ξ -> 
@@ -247,17 +286,13 @@ separateEnv {A ∷ Γ} (omega ∷ Δ₁) (omega ∷ Δ₂) (tup .(∅) .(Ξ₁' 
   tup Ξ₁' Ξ₂' (sym (∅-lid _)) (tup ∅ Ξ₁' (∅-lid _) (mult-omega v refl) θ₁)
                                 (tup ∅ Ξ₂' (∅-lid _) (mult-omega v refl) θ₂)
 
--- weakenΔ-valEnv : ∀ Γ {m Δ Θ Ξ} -> ValEnv Γ (m ×ₘ Δ) Θ Ξ -> ValEnv Γ Δ Θ Ξ
--- weakenΔ-valEnv [] θ = θ
--- weakenΔ-valEnv (A ∷ Γ) {one} {mₓ ∷ Δ} (tup Ξ₁ Ξ₂ refl fst snd) = tup Ξ₁ Ξ₂ refl fst (weakenΔ-valEnv Γ snd)
--- weakenΔ-valEnv (A ∷ Γ) {omega} {zero ∷ Δ} (tup Ξ₁ Ξ₂ refl fst snd) = tup Ξ₁ Ξ₂ refl fst (weakenΔ-valEnv Γ snd)
--- weakenΔ-valEnv (A ∷ Γ) {omega} {one ∷ Δ} (tup .(replicate zero) Ξ₂ refl (mult-omega v refl) snd) = tup ∅ Ξ₂ refl (mult-one v) (weakenΔ-valEnv Γ snd)
--- weakenΔ-valEnv (A ∷ Γ) {omega} {omega ∷ Δ} (tup Ξ₁ Ξ₂ refl fst snd) = tup Ξ₁ Ξ₂ refl fst (weakenΔ-valEnv Γ snd) 
 
-weakenΔ-valEnv : ∀ Γ {m Δ Θ Ξ} -> ValEnv Γ (m ×ₘ Δ) Θ Ξ -> ∃[ Ξ' ] (ValEnv Γ Δ Θ Ξ' × m ×ₘ Ξ' ≡ Ξ)
-weakenΔ-valEnv [] {m} θ = ∅ , refl , trans (×ₘ∅ m) (sym θ)
-weakenΔ-valEnv (_ ∷ Γ) {Δ = mₓ ∷ Δ} (tup Ξ₁ Ξ₂ refl fst snd) with weakenΔ-valEnv Γ snd 
-weakenΔ-valEnv (_ ∷ Γ) {one} {mₓ ∷ Δ} (tup Ξ₁ .(Data.Vec.map (λ y → y) Ξ') refl fst snd) | Ξ' , θ' , refl = Ξ₁ +ₘ Ξ' , tup Ξ₁ Ξ' refl fst θ' , lemma
+-- un×ₘ-valEnv is a counter of separateEnv for ×ₘ.
+
+un×ₘ-valEnv : ∀ Γ {m Δ Θ Ξ} -> ValEnv Γ (m ×ₘ Δ) Θ Ξ -> ∃[ Ξ' ] (ValEnv Γ Δ Θ Ξ' × m ×ₘ Ξ' ≡ Ξ)
+un×ₘ-valEnv [] {m} θ = ∅ , refl , trans (×ₘ∅ m) (sym θ)
+un×ₘ-valEnv (_ ∷ Γ) {Δ = mₓ ∷ Δ} (tup Ξ₁ Ξ₂ refl fst snd) with un×ₘ-valEnv Γ snd 
+un×ₘ-valEnv (_ ∷ Γ) {one} {mₓ ∷ Δ} (tup Ξ₁ .(Data.Vec.map (λ y → y) Ξ') refl fst snd) | Ξ' , θ' , refl = Ξ₁ +ₘ Ξ' , tup Ξ₁ Ξ' refl fst θ' , lemma
   where
     open import Data.Vec.Properties using (map-id) 
 
@@ -270,16 +305,13 @@ weakenΔ-valEnv (_ ∷ Γ) {one} {mₓ ∷ Δ} (tup Ξ₁ .(Data.Vec.map (λ y �
               Ξ₁ +ₘ Data.Vec.map (λ x -> x) Ξ'
             ∎
     
-weakenΔ-valEnv (_ ∷ Γ) {omega} {zero ∷ Δ} (tup .(∅) .(Data.Vec.map (mul₀ omega) Ξ') refl (mult-zero refl) snd) | Ξ' , θ' , refl = Ξ' , tup ∅ Ξ' (∅-lid _) (mult-zero refl) θ' , sym (∅-lid _)
-weakenΔ-valEnv (_ ∷ Γ) {omega} {one ∷ Δ} (tup .(∅) .(Data.Vec.map (mul₀ omega) Ξ') refl (mult-omega v refl) snd) | Ξ' , θ' , refl = Ξ' , tup ∅ Ξ' (∅-lid _) (mult-one v) θ' , sym (∅-lid _)
-weakenΔ-valEnv (_ ∷ Γ) {omega} {omega ∷ Δ} (tup .(∅) .(Data.Vec.map (mul₀ omega) Ξ') refl (mult-omega v refl) snd) | Ξ' , θ' , refl = Ξ' , tup ∅ Ξ' (∅-lid _) (mult-omega v refl) θ' , sym (∅-lid _)
+un×ₘ-valEnv (_ ∷ Γ) {omega} {zero ∷ Δ} (tup .(∅) .(Data.Vec.map (mul₀ omega) Ξ') refl (mult-zero refl) snd) | Ξ' , θ' , refl = Ξ' , tup ∅ Ξ' (∅-lid _) (mult-zero refl) θ' , sym (∅-lid _)
+un×ₘ-valEnv (_ ∷ Γ) {omega} {one ∷ Δ} (tup .(∅) .(Data.Vec.map (mul₀ omega) Ξ') refl (mult-omega v refl) snd) | Ξ' , θ' , refl = Ξ' , tup ∅ Ξ' (∅-lid _) (mult-one v) θ' , sym (∅-lid _)
+un×ₘ-valEnv (_ ∷ Γ) {omega} {omega ∷ Δ} (tup .(∅) .(Data.Vec.map (mul₀ omega) Ξ') refl (mult-omega v refl) snd) | Ξ' , θ' , refl = Ξ' , tup ∅ Ξ' (∅-lid _) (mult-omega v refl) θ' , sym (∅-lid _)
 
 
-{- 
-I don't know why but the following functions do not pass termination check, 
-when --without-K is turning on. 
--} 
-
+-- weakenΘ-value and weakenΘ-residual are counterparts of
+-- weakenΘ-term for values and residuals.
 
 weakenΘ-value : 
   ∀ {Θ Ξ Θ' Ξ' A i} -> 
@@ -304,25 +336,23 @@ weakenΘ-mult :
 weakenΘ-value ext (clo {Γ' = Γ'} m refl θ t) = 
   case* compatΘ-split ext of λ { 
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      clo m refl -- (compatΘ-preserves-all-no-omega ext ano) 
-                 (weakenΘ-valEnv Γ' ext₁ θ)
+      clo m refl (weakenΘ-valEnv Γ' ext₁ θ)
                  (weakenΘ-term ext₂ t) 
   }
---  with compatΘ-preserves-all-no-omega ext ano | compatΘ-split ext 
--- ... | ano' | _ , _ , ext₁ , ext₂ , refl = 
---   clo m refl ano' {!!} (weakenΘ-term ext₂ t)
---   clo m refl ano' (weakenΘ-valEnv Γ' ext₁ θ) (weakenΘ-term ext₂ t)
+
 weakenΘ-value ext (unit refl) = 
-  case* compatΘ-∅ ext of 
-  λ { refl -> unit refl } 
--- with compatΘ-∅ ext 
--- ... | refl = unit refl
+  case* compatΘ-∅ ext of λ where 
+    refl -> unit refl 
+
 weakenΘ-value ext (pair refl v₁ v₂) = 
-  case* compatΘ-split ext of λ {
+  case* compatΘ-split ext of λ where 
    (_ , _ , ext₁ , ext₂ , refl) -> 
-     pair refl -- (compatΘ-preserves-all-no-omega ext ano) 
-            (weakenΘ-value ext₁ v₁) (weakenΘ-value ext₂ v₂)
-  } 
+     pair refl (weakenΘ-value ext₁ v₁) (weakenΘ-value ext₂ v₂)
+
+weakenΘ-value ext (many m refl v) = 
+  case* compatΘ-×ₘ ext of λ where
+    (_ , ext' , refl) -> many m refl (weakenΘ-value ext' v) 
+
 weakenΘ-value ext (inl v) = inl (weakenΘ-value ext v)
 weakenΘ-value ext (inr v) = inr (weakenΘ-value ext v)
 weakenΘ-value ext (roll v) = roll (weakenΘ-value ext v)
@@ -337,16 +367,12 @@ weakenΘ-mult ext (mult-zero refl) =
   case* compatΘ-∅ ext  of λ {
     refl -> mult-zero refl
   }
--- with compatΘ-∅ ext 
--- ... | refl = mult-zero refl
+
 weakenΘ-mult ext (mult-one v) = mult-one (weakenΘ-value ext v)
 weakenΘ-mult ext (mult-omega v refl) = 
   case* compatΘ-∅ ext of λ { 
     refl -> mult-omega (weakenΘ-value ext v) refl 
   }
--- with compatΘ-∅ ext 
--- ... | refl = mult-omega (weakenΘ-value ext v) refl 
-
 
 weakenΘ-valEnv [] ext refl = 
   case* compatΘ-∅ ext of λ {
@@ -366,40 +392,32 @@ weakenΘ-residual ext unit● =
 weakenΘ-residual ext (letunit● r₁ r₂) = 
   case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      letunit● -- (compatΘ-preserves-all-no-omega ext ano) 
-               (weakenΘ-residual ext₁ r₁)
+      letunit● (weakenΘ-residual ext₁ r₁)
                (weakenΘ-residual ext₂ r₂)
   }
 
 weakenΘ-residual ext (pair● r₁ r₂) = 
   case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      pair● -- (compatΘ-preserves-all-no-omega ext ano) 
-               (weakenΘ-residual ext₁ r₁)
-               (weakenΘ-residual ext₂ r₂)
+      pair● (weakenΘ-residual ext₁ r₁)
+            (weakenΘ-residual ext₂ r₂)
   }
 
 weakenΘ-residual ext (letpair● r₁ r₂) = 
   case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-      letpair● -- (compatΘ-preserves-all-no-omega ext ano) 
-               (weakenΘ-residual ext₁ r₁)
+      letpair● (weakenΘ-residual ext₁ r₁)
                (weakenΘ-residual (compat-skip (compat-skip ext₂)) r₂)
   }
   
 weakenΘ-residual ext (inl● r) = inl● (weakenΘ-residual ext r)
 weakenΘ-residual ext (inr● r) = inr● (weakenΘ-residual ext r)
 weakenΘ-residual ext (case● {Γ₁ = Γ₁} {Γ₂} r refl θ₁ t₁ θ₂ t₂ v) with compatΘ-split ext 
--- ... | _ , _ , ext₁₂ , ext₃ , refl with compatΘ-split ext₁₂ 
 ... | _ , _ , ext₁ , ext₂ , refl 
--- with compatΘ-×ₘ ext₃ 
--- ... | _ , ext₃' , refl 
    with compatΘ-split ext₂ 
 ... | _ , _ , extₑ , extₜ , refl = 
-    case● -- (compatΘ-preserves-all-no-omega ext ano)
-          (weakenΘ-residual ext₁ r)
+    case● (weakenΘ-residual ext₁ r)
           refl 
-          -- (compatΘ-preserves-all-no-omega ext₂ ano₁)
           (weakenΘ-valEnv Γ₁ extₑ θ₁)
           (weakenΘ-term   (compat-skip extₜ) t₁) 
           (weakenΘ-valEnv Γ₂ extₑ θ₂)
@@ -414,68 +432,12 @@ weakenΘ-residual ext (var● x ok) =
 weakenΘ-residual ext (pin r v) = 
   case* compatΘ-split ext of λ {
     (_ , _ , ext₁ , ext₂ , refl) -> 
-       pin -- (compatΘ-preserves-all-no-omega ext ano)
-           (weakenΘ-residual ext₁ r) 
+       pin (weakenΘ-residual ext₁ r) 
            (weakenΘ-value ext₂ v)
   }
 
 
-
-
-
--- weakenΘ-valEnv []       ext refl with compatΘ-∅ ext 
--- ... | refl  = refl
--- weakenΘ-valEnv (x ∷ Γ) {m ∷ Δ} ext (tup Ξ₁ Ξ₂ refl mv θ) with compatΘ-split ext
--- weakenΘ-valEnv (x ∷ Γ) {_ ∷ Δ} ext (tup .∅ Ξ₂ refl (mult-zero refl) θ) | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl with compatΘ-∅ ext₁ 
--- ... | refl = tup Ξ₁' Ξ₂' refl (mult-zero refl) (weakenΘ-valEnv Γ ext₂ θ) 
--- weakenΘ-valEnv (x ∷ Γ) {_ ∷ Δ} ext (tup Ξ₁ Ξ₂ refl (mult-one v) θ) | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl = tup Ξ₁' Ξ₂' refl (mult-one (weakenΘ-value ext₁ v)) (weakenΘ-valEnv Γ ext₂ θ)  
--- weakenΘ-valEnv (x ∷ Γ) {_ ∷ Δ} ext (tup .∅ Ξ₂ refl (mult-omega v refl) θ) | Ξ₁' , Ξ₂' , ext₁ , ext₂ , refl with compatΘ-∅ ext₁ 
--- ... | refl = tup Ξ₁' Ξ₂' refl (mult-omega (weakenΘ-value ext₁ v) refl) (weakenΘ-valEnv Γ ext₂ θ) 
-
-
--- tup Ξ₁' Ξ₂' refl {!!} (weakenΘ-valEnv Γ ext₂ θ)  
-
--- weakenΘ-value : ∀ {Θ} {Ξ : MultEnv (length Θ)} {A B} Θ₀ -> 
---                   (eq : length Θ₀ + length Θ ≡ length (Θ₀ ++L Θ)) -> 
---                   (eq' : length Θ₀ + suc (length Θ) ≡ length (Θ₀ ++L B ∷ Θ)) -> 
---                   Value (Θ₀ ++L Θ) (subst MultEnv eq (∅ {length Θ₀} ++V Ξ)) A -> 
---                   Value (Θ₀ ++L B ∷ Θ) (subst MultEnv eq' (∅ ++V zero ∷ Ξ)) A
--- weakenΘ-red : ∀ {Θ} {Ξ : MultEnv (length Θ)} {A B} Θ₀ -> 
---                   (eq : length Θ₀ + length Θ ≡ length (Θ₀ ++L Θ)) -> 
---                   (eq' : length Θ₀ + suc (length Θ) ≡ length (Θ₀ ++L B ∷ Θ)) -> 
---                   Residual (Θ₀ ++L Θ) (subst MultEnv eq (∅ {length Θ₀} ++V Ξ)) A -> 
---                   Residual (Θ₀ ++L B ∷ Θ) (subst MultEnv eq' (∅ ++V zero ∷ Ξ)) A
-
--- weakenΘ-value Θ₀ eq eq' (clo m spΞ ano θ t) = {!!}
--- weakenΘ-value Θ₀ eq eq' (unit eq₁) = unit {!!}
--- weakenΘ-value Θ₀ eq eq' (pair spΞ ano v₁ v₂) = {!!}
--- weakenΘ-value Θ₀ eq eq' (inl v) = inl (weakenΘ-value Θ₀ eq eq' v)
--- weakenΘ-value Θ₀ eq eq' (inr v) = inr (weakenΘ-value Θ₀ eq eq' v)
--- weakenΘ-value Θ₀ eq eq' (roll v) = roll (weakenΘ-value Θ₀ eq eq' v)
--- weakenΘ-value Θ₀ eq eq' (red x) = red (weakenΘ-red Θ₀ eq eq' x) 
-
--- weakenΘ-valEnv : ∀ Γ {Δ Θ Ξ A} -> ValEnv Γ Δ Θ Ξ -> ValEnv Γ Δ (A ∷ Θ) (zero ∷ Ξ)
--- weakenΘ-valEnv [] θ = cong (_∷_ zero) θ
--- weakenΘ-valEnv (_ ∷ Γ) {m ∷ Δ} (tup Ξ₁ Ξ₂ spΞ fst snd) = 
---   {!tup Ξ₁ (!} 
-
--- all-no-omega-omega×ₘ : ∀ {n} (Δ : MultEnv n) -> all-no-omega (omega ×ₘ Δ) -> omega ×ₘ Δ ≡ Δ 
--- all-no-omega-omega×ₘ [] ano = refl
--- all-no-omega-omega×ₘ (zero ∷ Δ) (px ∷ ano) = cong (_∷_ zero) (all-no-omega-omega×ₘ Δ ano) 
-
--- multiply-value : 
---   ∀ {Θ m Ξ A} -> 
---   all-no-omega (m ×ₘ Ξ) -> Value Θ Ξ A -> Value Θ (m ×ₘ Ξ) A
--- multiply-value {Θ = Θ} {m = one} ano v = subst (λ x -> Value Θ x _) (sym (one×ₘ _)) v  
--- multiply-value {Θ = Θ} {omega} {Ξ} ano v with all-no-omega-omega×ₘ Ξ ano 
--- ... | eq  = subst (λ x -> Value Θ x _) (sym eq) v 
-
-value-to-mult : 
-  ∀ {Θ m Ξ A} -> 
-  all-no-omega (m ×ₘ Ξ) -> Value Θ Ξ A -> mult (λ Θ' Ξ' -> Value Θ' Ξ' A) (M→M₀ m) Θ Ξ
-value-to-mult {m = one} ano v = mult-one v
-value-to-mult {m = omega} {Ξ} ano v with all-no-omega-omega×ₘ Ξ ano
-... | refl = mult-omega v refl 
+-- Converting a value (of multiplicty m) into an entry to be inserted to a value environment. 
 
 value-to-multM : 
   ∀ {Θ m Ξ A} -> 
@@ -484,6 +446,7 @@ value-to-multM {Θ} {one} ano v = mult-one (subst (λ x -> Value Θ x _) (sym (o
 value-to-multM {Θ} {omega} {Ξ} ano v with all-no-omega-omega×ₘ Ξ ano
 ... | refl = mult-omega v (×ₘ∅ _)
 
+-- Some specialized versions of subst. 
 
 substV : ∀ {Θ Ξ Ξ' A} -> Ξ ≡ Ξ' -> Value Θ Ξ A -> Value Θ Ξ' A
 substV refl v = v
