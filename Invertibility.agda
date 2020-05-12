@@ -146,7 +146,7 @@ merge-split {x ∷ Θ} {one ∷ Ξ₁} {zero ∷ Ξ₂} (_ ∷ ano) (v ∷ ρ₁
 merge-split {x ∷ Θ} {one ∷ Ξ₁} {one ∷ Ξ₂} (() ∷ ano) ρ₁ ρ₂
   
 
--- Round-trip properties 
+-- Round-trip properties (corresponds to Lemma 3.3 in the paper)
 
 forward-backward : 
   ∀ {Θ Ξ A}
