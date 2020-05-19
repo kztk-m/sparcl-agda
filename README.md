@@ -36,8 +36,7 @@ So, if you trust
 us , please uncomment the two occurrences of `{-# TERMINATING #-}` in
 `Definitional.agda`, which suggests Agda to skip terminating checking for corresponding functions; after that, type-checking runs in a few minutes. 
 
-Type `make`. It will print many lines of messages such as `Checking ...`, but one
-will not see error messages.
+Just type `make` to invoke `agda` for type-checking. It will print many lines of messages such as `Checking ...`, but one will see no type error messages.
 
 Requirements
 ------------
