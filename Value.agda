@@ -29,7 +29,6 @@ data _⊛_ {ℓ : Level}
 
 -- mult is used for representing entries in value environments that are aware of multiplicities.  
 data mult {ℓ : Level} (F : Dom ℓ) : (m : Multiplicity₀) -> Dom ℓ where
-
   -- An entry corresponds to multiplicity zero, i.e., nothing. 
   mult-zero : 
     ∀ {Θ Ξ} -> 
@@ -47,8 +46,7 @@ data mult {ℓ : Level} (F : Dom ℓ) : (m : Multiplicity₀) -> Dom ℓ where
     (v : F Θ ∅) -> (eq : Ξ ≡ ∅) -> mult F omega Θ Ξ
 
 -- Values (Value), residuals (Residual) and value environments
--- (ValEnv) are mutually defined and thus the first comes is their
--- types. 
+-- (ValEnv) are mutually defined.
 -- 
 -- The sized types are used for termination checking with the presence
 -- of --without-K, which weakens termination analysis for

@@ -55,7 +55,7 @@ module Interpreter where
   Dmap : ∀ {A B i} -> (A -> B) -> DELAY A i -> DELAY B i 
   Dmap f d = Bind d (λ x -> Now (f x)) 
 
-  -- The function funD thaws the frozen operations.   
+  -- The function runD thaws the frozen operations.   
   runD : ∀ {A : Set} {i : Size} -> DELAY A i -> Delay A i 
   runD (Now x) = now x
   runD (Later x) = later λ where .force -> runD (force x)
@@ -75,7 +75,8 @@ module Interpreter where
   backwardF : ∀ {A B i} -> i ⊢F A ⇔ B -> B -> Delay A i 
   backwardF h b = runD (Backward h b) 
 
-  -- Similarly to runD, the frozen operations can be thawed. 
+  -- Similarly to runD, runD⇔ thawas the frozen operations in
+  -- _⊢F_⇔_.
   runD⇔ : ∀ {A B i} -> i ⊢F A ⇔ B -> i ⊢ A ⇔ B
   forward  (runD⇔ f) = forwardF f 
   backward (runD⇔ f) = backwardF f 
@@ -153,8 +154,8 @@ module Interpreter where
   -- Forward, backward and unidirectional evalautions are given as
   -- mutually recursive functions. Notice that, the existence of these
   -- functions essentially proves the type safety (i.e., the
-  -- preservation and progree prperty). Thus, one can see that they
-  -- are generalizations of Lemma 3.1 and Lemma 3.2 in the paper.
+  -- preservation and progree prperty). Thus, in a sense, they are
+  -- generalizations of Lemma 3.1 and Lemma 3.2 in the paper.
 
   -- Forward and backward evaluation. 
   -- {-# TERMINATING #-} 
@@ -162,7 +163,10 @@ module Interpreter where
     ∀ {Θ Ξ A} i -> 
     all-no-omega Ξ -> Residual Θ Ξ (A ●) -> i ⊢F (RValEnv Θ Ξ) ⇔ Value [] ∅ A 
 
-  -- Unidirectional evaluation. 
+  -- Unidirectional evaluation. Also, an important thing is that this function keeps 
+  -- the invariant all-no-omega (Ξₑ +ₘ Ξ) for recursive calls, which essentially supports 
+  -- the claim in Section 3.4: "This assumption is actually an invariant in our system ...".
+
   -- {-# TERMINATING #-} 
   eval : 
     ∀ {Θ Ξₑ Γ Δ Ξ A} i -> 
@@ -179,7 +183,7 @@ module Interpreter where
                     (sym (+ₘ-assoc (m ×ₘ Ξ₂) Ξ' _))
 
 
-  -- evalR is defined so that evalR ∞l ano r actually defines a
+  -- evalR is defined so that evalR ∞ ano r actually defines a
   -- bijection. See Invertiblity.agda for its proof.
   
   Forward  (evalR i ano unit●) _ = Now (unit refl)

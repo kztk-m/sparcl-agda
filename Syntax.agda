@@ -31,9 +31,10 @@ M→M₀ : Multiplicity -> Multiplicity₀
 M→M₀ one   = one 
 M→M₀ omega = omega 
 
--- Since it is cumbersome to handle type and value constructors, we handle them differently in 
--- this implementation. Superficially, we have (multiplicative) product and (additive) sum types, and
--- iso-recursive types. To express non-linear constructors, we prepare Many. 
+-- Instead of having constructors, we have (additive) sums and
+-- (multiplicative) products, together with iso-recursive types. The
+-- type constructor Many can be used for representing non-linear
+-- constructors.
 data Ty : ℕ -> Set where 
   _⊕_    : ∀ {n} -> Ty n -> Ty n -> Ty n 
   tunit  : ∀ {n} -> Ty n 
@@ -111,19 +112,16 @@ module TyExamples where
   natlist : ∀ {n} -> Ty n 
   natlist = μ (tunit ⊕ (nat ⊗ tvar zero))
 
-{- 
+-- Instead of using environments that maps variables to pairs of types
+-- and multiplicities, we use two sort of environments: one maps
+-- variables to types and the other maps variables to multiplicities.
+--
+-- We will use de Bruijn indices for variables, and thus type
+-- environments are represented as a list of types. The treatment of
+-- multiplicity environment is similar but we assume that it has the
+-- same length with the corresponding type environment; so we use Vec
+-- for multiplicity environments.
 
-Instead of handling an environment that maps variables to pairs of
-types and multiplicities, we handle two sort of environments: one maps
-variables to types and the other maps variables to multiplicities.
-
-We will use de Bruijn indices for variables, and thus type
-environments are represented as a list of types. The treatment of
-multiplicity environment is similar but we assume that it has the same
-length with the corresponding type environment; so we use Vec for
-multiplicity environments.
-
--} 
 TyEnv : Set 
 TyEnv = List (Ty zero) 
 
@@ -621,8 +619,10 @@ bwd :
 bwd e1 e2 = bapp (unlift e1) e2 
 
 
--- compatΘ Θ Ξ Θ' Ξ' asserts that environments ((Θ , Ξ) and (Θ' , Ξ'))
--- differ only in variables with multiplicity zero.
+-- compatΘ Θ Ξ Θ' Ξ' asserts that environments ((Θ , Ξ) and
+-- (Θ' , Ξ')) differ only in variables with multiplicity zero. That
+-- is, (Θ , Ξ) and (Θ' , Ξ') denote the same environement in
+-- paper's representation.
 
 data compatΘ : (Θ : TyEnv)  (Ξ : MultEnv (length Θ)) 
                 (Θ' : TyEnv) (Ξ' : MultEnv (length Θ')) -> Set where 
@@ -815,9 +815,10 @@ compatΘ-×ₘ {_ ∷ Θ} {omega} {omega ∷ Ξ} {_ ∷ Θ'} {.omega ∷ Ξ'} (c
 ... | Ξ'' , ext' , refl = omega ∷ Ξ'' , compat-skip ext' , refl
 
 
--- Well-typed terms can also be typed compatible environments. 
--- With a historical reason, this property is called 'weakenΘ-term' as 
--- `compatΘ` was initially used only for adding variables with multiplicity zero. 
+-- Well-typed terms can also be typed compatible environments.Due to a
+-- historical reason, this property is called weakenΘ-term as
+-- compatΘ was initially used only for adding variables with
+-- multiplicity zero.
 
 weakenΘ-term : ∀ {Γ Δ Θ Ξ Θ' Ξ' A} -> 
                   compatΘ Θ Ξ Θ' Ξ' -> 

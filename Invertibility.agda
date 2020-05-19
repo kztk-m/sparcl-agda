@@ -26,8 +26,8 @@ open import Data.Empty
 open import PInj
 open _⊢F_⇔_
 
--- m ⟶ v states that computation of m terminates in v. We prepare this 
--- for structural induction on the derivation. 
+-- m ⟶ v states that computation of m terminates in v, which is
+-- suitable for structural induction more than ⇓.
 data _⟶_ : {A : Set} (m : DELAY A ∞) (v : A) -> Set₁ where 
   now⟶   : ∀ {A : Set} (v : A) -> Now v ⟶ v
   later⟶ : ∀ {A : Set} {x : Thunk (DELAY A) ∞} -> ∀ (v : A) 
@@ -49,8 +49,8 @@ module _ where
   private
     -- It is unclear that we can prove the statement ⇓-⟶ by the
     -- indunction on m⇓, as it is not immediately clear that m⇓ does
-    -- not involve infinite number of binds. So, we based ourselves on
-    -- the number of 'later' and proves that the descruction of "bind"
+    -- not involve infinite number of binds. So, we base ourselves on
+    -- the number of 'later' and prove that the descruction of "bind"
     -- cannot increase the number ('lemma', below).
 
     -- steps 
@@ -58,7 +58,7 @@ module _ where
     len (now _)   = ℕ.zero
     len (later x) = ℕ.suc (len x)
 
-    -- Destruction cannot increase 'len'
+    -- Destruction cannot increase "steps"
     lemma : 
       ∀ {A B : Set} -> (m : Delay A ∞) (f : A -> Delay B ∞) 
       -> (mf⇓ : bind m f ⇓) -> Σ (m ⇓) λ m⇓ → Σ (f (extract m⇓) ⇓) λ fu⇓ -> (extract mf⇓ ≡ extract fu⇓ × len m⇓ ≤ len mf⇓ × len fu⇓ ≤ len mf⇓)
@@ -66,6 +66,7 @@ module _ where
     lemma (later x) f (later bd) with lemma (force x) f bd 
     ... | m⇓ , f⇓ , eq , rel₁ , rel₂ = later m⇓ , f⇓ , eq , s≤s rel₁ , ≤-step rel₂ 
     
+    -- A generalized statement for induction. 
     aux : ∀ {A : Set} n -> (m : DELAY A ∞) -> (m⇓ : runD m ⇓) -> len m⇓ ≤ n -> m ⟶ extract m⇓ 
     aux n (Now x) (now .x) ctr = now⟶ x
     aux zero    (Later x) (later m⇓) ()
@@ -79,7 +80,8 @@ module _ where
   ⇓-⟶ : ∀ {A : Set} (m : DELAY A ∞)  -> (m⇓ : runD m ⇓) -> m ⟶ extract m⇓ 
   ⇓-⟶ m m⇓ = aux (len m⇓) m m⇓ (≤-refl) 
 
--- In contrast, this direction is straightforward. 
+-- In contrast, the opposite direction is straightforward, thanks to
+-- the frozen bind.
 ⟶-⇓ : ∀ {A : Set} (m : DELAY A ∞) (v : A)
         -> m ⟶ v -> Σ[ m⇓ ∈ runD m ⇓ ] (extract m⇓ ≡ v) 
 ⟶-⇓ .(Now v) v (now⟶ .v) = now v , refl
@@ -146,7 +148,7 @@ merge-split {x ∷ Θ} {one ∷ Ξ₁} {zero ∷ Ξ₂} (_ ∷ ano) (v ∷ ρ₁
 merge-split {x ∷ Θ} {one ∷ Ξ₁} {one ∷ Ξ₂} (() ∷ ano) ρ₁ ρ₂
   
 
--- Round-trip properties (corresponds to Lemma 3.3 in the paper)
+-- Round-trip properties (corresponding to Lemma 3.3 in the paper)
 
 forward-backward : 
   ∀ {Θ Ξ A}
