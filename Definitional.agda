@@ -4,8 +4,8 @@
 -- my MacBook 13-inch 2017 with 3.5 GHz Core i7 CPU and 16 GB memory. 
 --
 -- Since most of the time was spent for termination analysis, please
--- uncomment {-# TERMINATING #-} before evalR and eval if you trust
--- us.
+-- uncomment {-# TERMINATING #-} before evalR and eval to remove the 
+-- termination checks.
 
 module Definitional where 
 
