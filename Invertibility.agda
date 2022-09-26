@@ -194,6 +194,9 @@ forward-backward ano (case● E refl θ₁ t₁ θ₂ t₂ v₁) ρ v (bind⟶ (
   bind⟶ _ _ ev₁ (later⟶ _ (
   bind⟶ _ _ (forward-backward (one ∷ ano-) r₁ _ _ fwd₁) (bind⟶ _ _ (forward-backward ano₀ E _ _ fwd) (now⟶≡ (split-merge ano ρ))))))
 
+forward-backward ano (roll● E) ρ .(roll u) (bind⟶ u .(roll u) fwd₁ (now⟶ .(roll u))) = later⟶ ρ (forward-backward ano E ρ u fwd₁)
+
+forward-backward ano (unroll● E) ρ v (later⟶ .v (bind⟶ (roll .v) .v fwd₁ (now⟶ .v))) = forward-backward ano E ρ (roll v) fwd₁
 
 forward-backward ano (var● x ok) ρ .(lkup ok ρ) (now⟶ _) rewrite lkup-unlkup ok ρ = now⟶ ρ
 forward-backward ano (pin E (clo .omega refl θ t)) ρ (pair {Ξ₁ = []} {[]} refl v₁ v₂) fwd 
@@ -213,6 +216,7 @@ backward-forward :
      in ∀ ρ v -> Backward h v ⟶ ρ -> Forward h ρ ⟶ v 
 
 backward-forward ano unit● ρ (unit refl) bwd = now⟶ (unit refl)
+-- backward-forward ano (letunit● E E₁) ρ v bwd = {!!} 
 backward-forward ano (letunit● E E₁) ρ v (bind⟶ ρ₂ _ bwd₂ (bind⟶ ρ₁ _ bwd₁ (now⟶ _))) with all-no-omega-dist _ _ ano 
 ... | ano₁ , ano₂ rewrite merge-split ano ρ₁ ρ₂  = 
   bind⟶ _ _ (backward-forward ano₁ E _ _ bwd₁) (backward-forward ano₂ E₁ _ _ bwd₂)
@@ -226,6 +230,8 @@ backward-forward ano (letpair● E E₁) ρ v (bind⟶ (v₁ ∷ v₂ ∷ ρ₂)
   with all-no-omega-dist _ _ ano
 ... | ano₁ , ano₂ rewrite merge-split ano ρ₁ ρ₂ = 
   bind⟶ _ _ (backward-forward ano₁ E _ _ bwd₁) (backward-forward (one ∷ one ∷ ano₂) E₁ _ _ bwd₂)
+
+-- backward-forward ano (letpair● E E₁) ρ v bwd = {!!} 
 
 backward-forward ano (inl● E) ρ (inl v) bwd = bind⟶ _ _ (backward-forward ano E ρ v bwd) (now⟶ (inl v))
 backward-forward ano (inl● E) ρ (inr v) bwd = ⊥-elim (¬Never⟶ bwd)
@@ -251,6 +257,10 @@ backward-forward
   (bind⟶ _ _ ev (later⟶ _ 
   (bind⟶ _ _ (backward-forward (one ∷ ano-) r _ _ bwd-) 
   (bind⟶ _ _ ap (now⟶ v)))))
+
+backward-forward ano (roll● E) ρ (roll v) (later⟶ .ρ bwd₁) = bind⟶ v (roll v) (backward-forward ano E ρ v bwd₁) (now⟶ (roll v))
+
+backward-forward ano (unroll● E) ρ v bwd = later⟶ v (bind⟶ (roll v) v (backward-forward ano E ρ (roll v) bwd) (now⟶ v)) 
 
 backward-forward ano (var● x ok) .(unlkup ok v) v (now⟶ _) rewrite unlkup-lkup ok v = now⟶ v
 

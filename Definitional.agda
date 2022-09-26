@@ -267,7 +267,15 @@ module Interpreter where
                }
             }
         }
+    
+  Forward  (evalR i ano (roll● e)) ρ = Bind (Forward (evalR i ano e) ρ) λ x -> Now (roll x)
+  Backward (evalR i ano (roll● e)) (roll v) = Later λ {.force {j} -> Backward (evalR j ano e) v }
+
+  Forward  (evalR i ano (unroll● e)) ρ = Later λ { .force {j} -> Bind (Forward (evalR j ano e) ρ) λ { (roll x) -> Now x } }
+  Backward (evalR i ano (unroll● e)) v = Backward (evalR i ano e) (roll v)
+
   
+
   Backward (evalR i ano (case● {Γ₁ = Γ₁} {Γ₂} r refl θ₁ t₁ θ₂ t₂ f)) v = do 
     ano₀ , ano- <- all-no-omega-dist _ _ ano 
     Bind (apply i [] f v) λ {
@@ -592,10 +600,10 @@ module Interpreter where
 
   eval i ano θ (inl● t) = 
     BindR (eval i ano θ t) λ E -> Now (red (inl● E))
-    
-  
+      
   eval i ano θ (inr● t) = 
     BindR (eval i ano θ t) λ E -> Now (red (inr● E))    
+
   
   eval {Θ} {Ξₑ} {Γ} i ano θ (case● {Δ₀ = Δ₀} {Δ} {Δ'} {Ξ₀ = Ξ₀} {Ξ} {Ξ'} t t₁ t₂ t₃) 
     with separateEnv {Γ} (Δ₀ +ₘ Δ) _ θ 
@@ -641,6 +649,11 @@ module Interpreter where
                            (×ₘ∅ omega))
                      (∅-rid (Ξₑ₁ +ₘ Ξ₀ +ₘ (Ξₑ₂ +ₘ Ξ) )))
 
+  eval i ano θ (roll● t) = 
+    BindR (eval i ano θ t) λ E -> Now (red (roll● E))
+      
+  eval i ano θ (unroll● t) = 
+    BindR (eval i ano θ t) λ E -> Now (red (unroll● E))    
  
   eval {Θ} {Ξₑ} {Γ} i ano θ (var● x ad ok) 
     with discardable-has-no-resources {Γ} θ ad

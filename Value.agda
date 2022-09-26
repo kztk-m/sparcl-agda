@@ -169,6 +169,17 @@ data Residual Θ where
     (v : Value [] ∅ (C # omega ~> tbool) {i}) -> 
     Residual Θ (Ξ₀ +ₘ Ξ) (C ●) {↑ i} 
 
+  roll● : 
+    ∀ {Ξ F i} -> 
+    Residual Θ Ξ ((substTy F (μ F)) ●) {i} -> 
+    Residual Θ Ξ ((μ F) ●) {↑ i}
+
+  unroll● :
+    ∀ {Ξ F i} -> 
+    Residual Θ Ξ ((μ F) ●) {i} -> 
+    Residual Θ Ξ ((substTy F (μ F)) ●) {↑ i} 
+
+
 
   var● : ∀ {Ξ A i} -> 
          (x : Θ ∋ A) -> (ok : varOk● Θ x Ξ) ->
@@ -421,6 +432,8 @@ weakenΘ-residual ext (case● {Γ₁ = Γ₁} {Γ₂} r refl θ₁ t₁ θ₂ t
           (weakenΘ-valEnv Γ₂ extₑ θ₂)
           (weakenΘ-term   (compat-skip extₜ) t₂) 
           (weakenΘ-value  adjust∅Θ v) 
+weakenΘ-residual ext (roll● r) = roll● (weakenΘ-residual ext r)
+weakenΘ-residual ext (unroll● r) = unroll● (weakenΘ-residual ext r)
   
 weakenΘ-residual ext (var● x ok) = 
   case* compatΘ-preserves-varOk● ext ok of λ {

@@ -576,6 +576,16 @@ data Term : ∀ (Γ : TyEnv) -> MultEnv (length Γ) -> (Θ : TyEnv) -> MultEnv (
     Term Γ (Δ₀ +ₘ Δ +ₘ omega ×ₘ Δ') Θ (Ξ₀ +ₘ Ξ +ₘ omega ×ₘ Ξ') (C ●)
 
 
+  roll● : 
+    ∀ {Γ Δ Θ Ξ F} -> 
+    Term Γ Δ Θ Ξ ((substTy F (μ F)) ●) -> 
+    Term Γ Δ Θ Ξ ((μ F) ●) 
+
+  unroll● :
+    ∀ {Γ Δ Θ Ξ F} -> 
+    Term Γ Δ Θ Ξ ((μ F) ●) -> 
+    Term Γ Δ Θ Ξ ((substTy F (μ F)) ●)
+
   var● : ∀ {Γ Δ Θ Ξ A} -> 
          (x : Θ ∋ A) -> 
          (ad : All discardable Δ) -> varOk● Θ x Ξ ->
@@ -873,6 +883,8 @@ weakenΘ-term ext (case● t t₁ t₂ t₃)
 ... | _ , _ , ext₁₂ , ext₃ , refl with compatΘ-split ext₁₂ 
 ... | _ , _ , ext₁ , ext₂ , refl with compatΘ-×ₘ ext₃ 
 ... | _ , ext₃' , refl = case● (weakenΘ-term ext₁ t) (weakenΘ-term (compat-skip ext₂) t₁) (weakenΘ-term (compat-skip ext₂) t₂) (weakenΘ-term ext₃' t₃)
+weakenΘ-term ext (roll● t)   = roll● (weakenΘ-term ext t)
+weakenΘ-term ext (unroll● t) = unroll● (weakenΘ-term ext t)
 weakenΘ-term ext (var● x ad ok) with compatΘ-preserves-varOk● ext ok 
 ... | x' , ok' = var● x' ad ok'
 weakenΘ-term ext (pin t₁ t₂) 

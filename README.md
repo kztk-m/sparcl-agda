@@ -36,8 +36,8 @@ To type check, type `make` to invoke `agda` for type-checking. It will print man
 Requirements
 ------------
 
- * Agda 2.6.1
- * Agda's standard library version 1.3 
+ * Agda 2.6.1 or Agda 2.6.2
+ * Agda's standard library version 1.3-1.7.1
  
 The scripts are not compatible with standard library version 1.2 or ealier, due to the change on `IsCommutativeMonoid` as of version 1.3.
  
