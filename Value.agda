@@ -1,4 +1,4 @@
-{-# OPTIONS --without-K #-}
+{-# OPTIONS --without-K --sized-types #-}
 
 open import Level renaming (zero to lzero ; suc to lsuc)
 open import Syntax

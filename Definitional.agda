@@ -1,4 +1,4 @@
-{-# OPTIONS --without-K #-}
+{-# OPTIONS --without-K --sized-types #-}
 
 -- Approx. 15-20 min are required to typecheck this file (for Agda 2.6.1) on
 -- my MacBook 13-inch 2017 with 3.5 GHz Core i7 CPU and 16 GB memory. 
