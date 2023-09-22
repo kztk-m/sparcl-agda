@@ -59,20 +59,33 @@ tbool = tunit ⊕ tunit
 
 module _ where 
   -- Several properties to handle recursive types. 
-  open import Data.Nat.Properties
-  private 
-    lemma : ∀ {m n} -> m ≤ n -> ∃[ k ] (k + m ≡ n)
-    lemma {n = n} z≤n = n , +-identityʳ n
-    lemma (s≤s r) with lemma r 
-    ... | k , refl = k , +-suc k _ 
 
-    weakenVarK : ∀ {m n k} -> k + m ≡ n -> Fin m -> Fin (k + m) 
-    weakenVarK {k = zero} refl  x = x
-    weakenVarK {n = suc n} {suc k} eq x = suc (weakenVarK {n = n} {k = k} (suc-injective eq) x) 
+  open import Data.Nat.Properties
+  -- private 
+  --   lemma : ∀ {m n} -> m ≤ n -> ∃[ k ] (k + m ≡ n)
+  --   lemma {n = n} z≤n = n , +-identityʳ n
+  --   lemma (s≤s r) with lemma r 
+  --   ... | k , refl = k , +-suc k _ 
+
+  --   weakenVarK : ∀ {m n k} -> k + m ≡ n -> Fin m -> Fin (k + m) 
+  --   weakenVarK {k = zero} refl  x = x
+  --   weakenVarK {n = suc n} {suc k} eq x = suc (weakenVarK {n = n} {k = k} (suc-injective eq) x) 
 
   weakenVar : ∀ {m n} -> m ≤ n -> Fin m -> Fin n 
-  weakenVar r x with lemma r 
-  ... | k , r' = subst Fin r' (weakenVarK r' x)
+  weakenVar r = weakenVar′ (≤⇒≤′ r)
+    where
+      weakenVar′ : ∀{m n} -> m ≤′ n -> Fin m -> Fin n 
+      weakenVar′ ≤′-refl x     = x
+      weakenVar′ (≤′-step r) x = suc (weakenVar′ r x)
+
+  -- weakenVar r x with lemma r 
+  -- ... | k , r' = subst Fin r' (weakenVarK r' x)
+
+  weakenVarGen : ∀ {m n} -> (k : ℕ) -> m ≤ n -> Fin (k + m) -> Fin (k + n) 
+  weakenVarGen zero r x = weakenVar r x
+  weakenVarGen (suc k) r zero = zero
+  weakenVarGen (suc k) r (suc x) = suc (weakenVarGen k r x)
+
 
   substTyVar : ∀ {m n k} -> m + n ≤ k -> Fin (m + suc n) -> Ty k -> Ty k
   substTyVar {zero} r zero t = t
@@ -80,16 +93,19 @@ module _ where
   substTyVar {suc m} {k = suc k} r zero t = tvar zero 
   substTyVar {suc m} (s≤s r) (suc x) t = substTyVar {m} (≤-trans r (≤-step ≤-refl)) x t 
 
+  weakenGen : ∀ {m n} -> ∀ k -> m ≤ n -> Ty (k + m) -> Ty (k + n) 
+  weakenGen k r (t₁ ⊕ t₂) = weakenGen k r t₁ ⊕ weakenGen k r t₂
+  weakenGen k r tunit = tunit
+  weakenGen k r (t₁ ⊗ t₂) = weakenGen k r t₁ ⊗ weakenGen k r t₂
+  weakenGen k r (Many x t) = Many x (weakenGen k r t)
+  weakenGen k r (t₁ # x ~> t₂) = weakenGen k r t₁ # x ~> weakenGen k r t₂
+  weakenGen k r (t ●) = weakenGen k r t ●
+  weakenGen k r (μ t) = μ (weakenGen (suc k) r t)
+  weakenGen k r (tvar x) = tvar (weakenVarGen k r x)
+  weakenGen k r (t₁ ↔ t₂) = weakenGen k r t₁ ↔ weakenGen k r  t₂
+
   weaken : ∀ {m n} -> m ≤ n -> Ty m -> Ty n 
-  weaken r (t ⊕ t₁) = weaken r t ⊕ weaken r t₁
-  weaken r tunit =  tunit 
-  weaken r (t ⊗ t₁) = weaken r t ⊗ weaken r t₁
-  weaken r (Many x t) = Many x (weaken r t)
-  weaken r (t # x ~> t₁) = weaken r t # x ~> weaken r t₁
-  weaken r (t ●) = weaken r t ●
-  weaken r (μ t) = μ (weaken (s≤s r) t)
-  weaken r (tvar x) = tvar (weakenVar r x)  
-  weaken r (t₁ ↔ t₂) = weaken r t₁ ↔ weaken r t₂ 
+  weaken r t = weakenGen 0 r t 
 
   substTyGen : ∀ {m n} -> Ty (m + suc n) -> Ty (m + n) -> Ty (m + n) 
   substTyGen (s₁ ⊕ s₂) t = substTyGen s₁ t ⊕ substTyGen s₂ t 
